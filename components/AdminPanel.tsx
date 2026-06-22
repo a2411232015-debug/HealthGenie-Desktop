@@ -1,7 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ICONS } from '../constants';
 import { MealRecommendation } from '../types';
 import { Phone, Save, Check, Trash2 } from 'lucide-react';
+import { MerchantOrderManagement } from './MerchantOrderManagement';
+import { getAnalyticsSummary, seedMockEventsIfNeeded, AnalyticsSummary } from '../utils/merchantAnalytics';
 
 interface AdminPanelProps {
   meals: MealRecommendation[];
@@ -11,8 +13,189 @@ interface AdminPanelProps {
   onBack: () => void;
 }
 
-type AdminView = 'analytics' | 'menu' | 'store';
+type AdminView = 'analytics' | 'menu' | 'store' | 'orders';
 type MenuMode = 'manual' | 'ai';
+
+const MerchantAnalyticsView = () => {
+  const [summary, setSummary] = useState<AnalyticsSummary | null>(null);
+
+  useEffect(() => {
+    // 1. 初始化時如有需要則放入 mock data
+    seedMockEventsIfNeeded();
+    
+    // 2. 讀取資料
+    const loadData = () => {
+      setSummary(getAnalyticsSummary());
+    };
+    
+    loadData();
+
+    // 3. 綁定事件監聽自動更新
+    window.addEventListener('analytics_updated', loadData);
+    window.addEventListener('orders_updated', loadData);
+
+    return () => {
+      window.removeEventListener('analytics_updated', loadData);
+      window.removeEventListener('orders_updated', loadData);
+    };
+  }, []);
+
+  if (!summary) return null;
+
+  const maxTraffic = Math.max(...summary.trafficTrend, 1); // 避免除以 0
+
+  // Simple SVG Line Chart logic
+  const chartHeight = 60;
+  const chartWidth = 200;
+  const points = summary.trafficTrend.map((val, i) => {
+    const x = (i / (summary.trafficTrend.length - 1)) * chartWidth;
+    const y = chartHeight - (val / maxTraffic) * chartHeight;
+    return `${x},${y}`;
+  }).join(' ');
+
+  return (
+    <div className="space-y-8 animate-in fade-in duration-300">
+      <div className="flex justify-between items-end">
+        <div>
+          <h2 className="text-2xl font-bold text-slate-800">營運數據總覽</h2>
+          <p className="text-slate-500 text-sm mt-1">統計區間: 過去 30 天</p>
+        </div>
+        <button className="text-primary-600 text-sm font-bold bg-primary-50 px-4 py-2 rounded-lg hover:bg-primary-100 transition-colors">
+          下載完整報表
+        </button>
+      </div>
+
+      {/* KPI Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 relative overflow-hidden group hover:shadow-md transition-shadow">
+          <div className="absolute right-0 top-0 p-4 opacity-10 text-blue-500 group-hover:scale-110 transition-transform">{ICONS.Activity}</div>
+          <p className="text-slate-500 text-xs font-bold uppercase tracking-wider mb-2">總曝光數 (Impressions)</p>
+          <div className="flex items-baseline gap-2">
+            <span className="text-3xl font-black text-slate-800">{summary.impressions.toLocaleString()}</span>
+          </div>
+          <p className="text-xs text-slate-400 mt-2">潛在觸及客群</p>
+        </div>
+
+        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 relative overflow-hidden group hover:shadow-md transition-shadow">
+          <div className="absolute right-0 top-0 p-4 opacity-10 text-emerald-500 group-hover:scale-110 transition-transform">{ICONS.Sparkles}</div>
+          <p className="text-slate-500 text-xs font-bold uppercase tracking-wider mb-2">導流點擊 (Clicks)</p>
+          <div className="flex items-baseline gap-2">
+            <span className="text-3xl font-black text-slate-800">{summary.clicks.toLocaleString()}</span>
+          </div>
+          <p className="text-xs text-slate-400 mt-2">有效轉換率 {summary.conversionRate}%</p>
+        </div>
+
+        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 relative overflow-hidden group hover:shadow-md transition-shadow">
+          <div className="absolute right-0 top-0 p-4 opacity-10 text-purple-500 group-hover:scale-110 transition-transform">{ICONS.Location}</div>
+          <p className="text-slate-500 text-xs font-bold uppercase tracking-wider mb-2">實際導航 (Navigations)</p>
+          <div className="flex items-baseline gap-2">
+            <span className="text-3xl font-black text-slate-800">{summary.navigations.toLocaleString()}</span>
+          </div>
+          <p className="text-xs text-slate-400 mt-2">高意圖到店顧客</p>
+        </div>
+
+        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 relative overflow-hidden group hover:shadow-md transition-shadow">
+          <div className="absolute right-0 top-0 p-4 opacity-10 text-amber-500 group-hover:scale-110 transition-transform">{ICONS.Calories}</div>
+          <p className="text-slate-500 text-xs font-bold uppercase tracking-wider mb-2">預估帶動營收</p>
+          <div className="flex items-baseline gap-2">
+            <span className="text-3xl font-black text-slate-800">${summary.estimatedRevenue.toLocaleString()}</span>
+          </div>
+          <p className="text-xs text-slate-400 mt-2">基於平均客單價 ${summary.averageOrderValue.toLocaleString()}</p>
+        </div>
+      </div>
+
+      {/* Charts Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Traffic Trend Chart */}
+        <div className="lg:col-span-2 bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+          <h3 className="font-bold text-slate-800 mb-6 flex items-center gap-2">
+            {ICONS.Analytics} 流量趨勢 (過去 7 天)
+          </h3>
+          <div className="h-64 flex items-end justify-between gap-2 px-2">
+            {summary.trafficTrend.map((val, idx) => (
+              <div key={idx} className="w-full flex flex-col justify-end group">
+                <div
+                  className="w-full bg-primary-100 rounded-t-lg group-hover:bg-primary-500 transition-colors relative"
+                  style={{ height: `${(val / maxTraffic) * 100}%` }}
+                >
+                  <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10 pointer-events-none">
+                    {val}次
+                  </div>
+                </div>
+                <p className="text-center text-xs text-slate-400 mt-2">Day {idx + 1}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Top Meals Ranking */}
+        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+          <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
+            {ICONS.ThumbsUp} 熱門餐點排行
+          </h3>
+          {summary.topMeals.length > 0 ? (
+            <div className="space-y-5">
+              {summary.topMeals.map((meal, idx) => (
+                <div key={idx} className="group">
+                  <div className="flex justify-between text-sm mb-1">
+                    <span className="font-medium text-slate-700">#{idx + 1} {meal.name}</span>
+                    <span className={`text-xs font-bold ${meal.growth.startsWith('+') ? 'text-emerald-500' : 'text-red-400'}`}>
+                      {meal.growth}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs text-slate-500">
+                    <span>已售 {meal.quantity} 份</span>
+                    <span>${meal.revenue.toLocaleString()}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="py-8 text-center text-slate-400 text-sm">
+              尚無餐點銷售資料
+            </div>
+          )}
+          
+          <div className="mt-8 p-4 bg-slate-50 rounded-xl border border-slate-100">
+            <p className="text-xs text-slate-500 mb-2 font-bold uppercase">優化建議</p>
+            <p className="text-sm text-slate-700">
+              {summary.topMeals.length > 0 
+                ? `「${summary.topMeals[0].name}」${summary.topMeals[0].suggestion}` 
+                : '目前資料量不足，完成更多訂單後將產生營運建議。'}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Billing Preview */}
+      <div className="bg-slate-900 rounded-2xl p-6 text-white shadow-xl shadow-slate-200">
+        <div className="flex flex-col md:flex-row justify-between items-center gap-6">
+          <div>
+            <h3 className="text-xl font-bold flex items-center gap-2 mb-1">
+              {ICONS.Check} 本月結算預覽
+            </h3>
+            <p className="text-slate-400 text-sm">依據系統訂單小計計算 (已扣除取消訂單)</p>
+          </div>
+
+          <div className="flex gap-6 md:gap-8 text-center md:text-right">
+            <div>
+              <p className="text-xs text-slate-400 mb-1">訂單數</p>
+              <p className="text-2xl font-bold">{summary.validOrdersCount} 筆</p>
+            </div>
+            <div>
+              <p className="text-xs text-slate-400 mb-1">平台服務費</p>
+              <p className="text-2xl font-bold text-slate-300">-${summary.platformFee.toLocaleString()}</p>
+            </div>
+            <div className="border-l border-slate-700 pl-6 md:pl-8">
+              <p className="text-xs text-emerald-400 mb-1 font-bold">商家實收金額</p>
+              <p className="text-4xl font-black tracking-tight text-emerald-400">${summary.netRevenue.toLocaleString()}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 export const AdminPanel: React.FC<AdminPanelProps> = ({ meals, onAddMeal, onUpdateMeal, onDeleteMeal, onBack }) => {
   const [currentView, setCurrentView] = useState<AdminView>('menu');
@@ -199,6 +382,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ meals, onAddMeal, onUpda
         protein: Number(form.protein) || Math.round((Number(form.calories) * 0.3) / 4),
         fat: Number(form.fat) || Math.round((Number(form.calories) * 0.3) / 9),
         carbs: Number(form.carbs) || Math.round((Number(form.calories) * 0.4) / 4),
+        sugar: 0,
+        sodium: 0,
+        fiber: 0,
       }
     };
 
@@ -259,6 +445,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ meals, onAddMeal, onUpda
           {ICONS.MealPlan} 菜單管理
         </button>
         <button
+          onClick={() => setCurrentView('orders')}
+          className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${currentView === 'orders' ? 'bg-primary-600 text-white' : 'hover:bg-slate-800'}`}
+        >
+          {ICONS.Orders} 訂單管理
+        </button>
+        <button
           onClick={() => setCurrentView('store')}
           className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${currentView === 'store' ? 'bg-primary-600 text-white' : 'hover:bg-slate-800'}`}
         >
@@ -276,165 +468,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ meals, onAddMeal, onUpda
       </div>
     </aside>
   );
-
-  const renderAnalytics = () => {
-    // Mock Data for Analytics Visualization
-    const trafficData = [45, 62, 58, 85, 92, 115, 128]; // Last 7 days
-    const maxTraffic = Math.max(...trafficData);
-    const topMeals = [
-      { name: '舒肥雞胸藜麥餐盒', clicks: 342, growth: '+12%' },
-      { name: '香煎鮭魚五穀飯', clicks: 215, growth: '+5%' },
-      { name: '炙燒鮪魚波奇碗', clicks: 184, growth: '-2%' },
-    ];
-
-    // Simple SVG Line Chart logic
-    const chartHeight = 60;
-    const chartWidth = 200;
-    const points = trafficData.map((val, i) => {
-      const x = (i / (trafficData.length - 1)) * chartWidth;
-      const y = chartHeight - (val / maxTraffic) * chartHeight;
-      return `${x},${y}`;
-    }).join(' ');
-
-    return (
-      <div className="space-y-8 animate-in fade-in duration-300">
-        <div className="flex justify-between items-end">
-          <div>
-            <h2 className="text-2xl font-bold text-slate-800">營運數據總覽</h2>
-            <p className="text-slate-500 text-sm mt-1">統計區間: 過去 30 天</p>
-          </div>
-          <button className="text-primary-600 text-sm font-bold bg-primary-50 px-4 py-2 rounded-lg hover:bg-primary-100 transition-colors">
-            下載完整報表
-          </button>
-        </div>
-
-        {/* KPI Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 relative overflow-hidden group hover:shadow-md transition-shadow">
-            <div className="absolute right-0 top-0 p-4 opacity-10 text-blue-500 group-hover:scale-110 transition-transform">{ICONS.Activity}</div>
-            <p className="text-slate-500 text-xs font-bold uppercase tracking-wider mb-2">總曝光數 (Impressions)</p>
-            <div className="flex items-baseline gap-2">
-              <span className="text-3xl font-black text-slate-800">12,500</span>
-              <span className="text-xs font-bold text-emerald-500 bg-emerald-50 px-1.5 py-0.5 rounded">↑ 15%</span>
-            </div>
-            <p className="text-xs text-slate-400 mt-2">潛在觸及客群</p>
-          </div>
-
-          <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 relative overflow-hidden group hover:shadow-md transition-shadow">
-            <div className="absolute right-0 top-0 p-4 opacity-10 text-emerald-500 group-hover:scale-110 transition-transform">{ICONS.Sparkles}</div>
-            <p className="text-slate-500 text-xs font-bold uppercase tracking-wider mb-2">導流點擊 (Clicks)</p>
-            <div className="flex items-baseline gap-2">
-              <span className="text-3xl font-black text-slate-800">850</span>
-              <span className="text-xs font-bold text-emerald-500 bg-emerald-50 px-1.5 py-0.5 rounded">↑ 8%</span>
-            </div>
-            <p className="text-xs text-slate-400 mt-2">有效轉換率 6.8%</p>
-          </div>
-
-          <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 relative overflow-hidden group hover:shadow-md transition-shadow">
-            <div className="absolute right-0 top-0 p-4 opacity-10 text-purple-500 group-hover:scale-110 transition-transform">{ICONS.Location}</div>
-            <p className="text-slate-500 text-xs font-bold uppercase tracking-wider mb-2">實際導航 (Navigations)</p>
-            <div className="flex items-baseline gap-2">
-              <span className="text-3xl font-black text-slate-800">120</span>
-              <span className="text-xs font-bold text-emerald-500 bg-emerald-50 px-1.5 py-0.5 rounded">↑ 22%</span>
-            </div>
-            <p className="text-xs text-slate-400 mt-2">高意圖到店顧客</p>
-          </div>
-
-          <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 relative overflow-hidden group hover:shadow-md transition-shadow">
-            <div className="absolute right-0 top-0 p-4 opacity-10 text-amber-500 group-hover:scale-110 transition-transform">{ICONS.Calories}</div>
-            <p className="text-slate-500 text-xs font-bold uppercase tracking-wider mb-2">預估帶動營收</p>
-            <div className="flex items-baseline gap-2">
-              <span className="text-3xl font-black text-slate-800">$24,000</span>
-            </div>
-            <p className="text-xs text-slate-400 mt-2">基於平均客單價 $200</p>
-          </div>
-        </div>
-
-        {/* Charts Section */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Traffic Trend Chart */}
-          <div className="lg:col-span-2 bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-            <h3 className="font-bold text-slate-800 mb-6 flex items-center gap-2">
-              {ICONS.Analytics} 流量趨勢 (過去 7 天)
-            </h3>
-            <div className="h-64 flex items-end justify-between gap-2 px-2">
-              {trafficData.map((val, idx) => (
-                <div key={idx} className="w-full flex flex-col justify-end group">
-                  <div
-                    className="w-full bg-primary-100 rounded-t-lg group-hover:bg-primary-500 transition-colors relative"
-                    style={{ height: `${(val / maxTraffic) * 100}%` }}
-                  >
-                    <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity">
-                      {val}次
-                    </div>
-                  </div>
-                  <p className="text-center text-xs text-slate-400 mt-2">Day {idx + 1}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Top Meals Ranking */}
-          <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-            <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
-              {ICONS.ThumbsUp} 熱門餐點排行
-            </h3>
-            <div className="space-y-5">
-              {topMeals.map((meal, idx) => (
-                <div key={idx} className="group">
-                  <div className="flex justify-between text-sm mb-1">
-                    <span className="font-medium text-slate-700">#{idx + 1} {meal.name}</span>
-                    <span className={`text-xs font-bold ${meal.growth.startsWith('+') ? 'text-emerald-500' : 'text-red-400'}`}>
-                      {meal.growth}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
-                      <div className="h-full bg-slate-800 rounded-full" style={{ width: `${(meal.clicks / 400) * 100}%` }}></div>
-                    </div>
-                    <span className="text-xs text-slate-500 w-10 text-right">{meal.clicks}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-            <div className="mt-8 p-4 bg-slate-50 rounded-xl border border-slate-100">
-              <p className="text-xs text-slate-500 mb-2 font-bold uppercase">優化建議</p>
-              <p className="text-sm text-slate-700">
-                「炙燒鮪魚」點擊率略有下降，建議更新餐點圖片或調整價格以提升吸引力。
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* Billing Preview */}
-        <div className="bg-slate-900 rounded-2xl p-6 text-white shadow-xl shadow-slate-200">
-          <div className="flex flex-col md:flex-row justify-between items-center gap-6">
-            <div>
-              <h3 className="text-xl font-bold flex items-center gap-2 mb-1">
-                {ICONS.Check} 本月結算預覽
-              </h3>
-              <p className="text-slate-400 text-sm">計費週期：2023/10/01 - 2023/10/31</p>
-            </div>
-
-            <div className="flex gap-8 text-center md:text-right">
-              <div>
-                <p className="text-xs text-slate-400 mb-1">有效導流數</p>
-                <p className="text-2xl font-bold">850 次</p>
-              </div>
-              <div>
-                <p className="text-xs text-slate-400 mb-1">費率</p>
-                <p className="text-2xl font-bold">$5 <span className="text-sm text-slate-500">/次</span></p>
-              </div>
-              <div className="border-l border-slate-700 pl-8">
-                <p className="text-xs text-emerald-400 mb-1 font-bold">本期應繳金額</p>
-                <p className="text-4xl font-black tracking-tight">$4,250</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  };
 
   const renderStoreInfo = () => (
     <div className="max-w-2xl space-y-6 animate-in fade-in duration-300">
@@ -814,9 +847,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ meals, onAddMeal, onUpda
           </div>
         </header>
 
-        {currentView === 'analytics' && renderAnalytics()}
+        {currentView === 'analytics' && <MerchantAnalyticsView />}
         {currentView === 'menu' && renderMenuManager()}
         {currentView === 'store' && renderStoreInfo()}
+        {currentView === 'orders' && <MerchantOrderManagement />}
       </main>
     </div>
   );

@@ -63,6 +63,13 @@ export const Layout: React.FC<LayoutProps> = ({ currentTab, onTabChange, childre
             onClick={() => onTabChange(AppTab.SHOPPING_CART)} 
           />
           <NavItem 
+            tab={AppTab.ORDERS} 
+            label="我的訂單" 
+            icon={ICONS.Orders} 
+            isActive={currentTab === AppTab.ORDERS || currentTab === AppTab.ORDER_DETAIL} 
+            onClick={() => onTabChange(AppTab.ORDERS)} 
+          />
+          <NavItem 
             tab={AppTab.PROFILE} 
             label="個人設定" 
             icon={ICONS.Profile} 
@@ -78,11 +85,12 @@ export const Layout: React.FC<LayoutProps> = ({ currentTab, onTabChange, childre
       </main>
 
       {/* Mobile Navigation Bar */}
-      <div className={`md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 z-50 flex justify-around p-2 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] ${currentTab === AppTab.CHECKOUT ? 'hidden' : ''}`}>
+      <div className={`md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 z-50 flex justify-around p-2 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] ${currentTab === AppTab.CHECKOUT || currentTab === AppTab.ORDER_DETAIL ? 'hidden' : ''}`}>
         {[
           { tab: AppTab.DASHBOARD, label: "概覽", icon: ICONS.Dashboard },
           { tab: AppTab.MEAL_PLAN, label: "推薦", icon: ICONS.MealPlan },
           { tab: AppTab.SHOPPING_CART, label: "購物車", icon: ICONS.ShoppingCart },
+          { tab: AppTab.ORDERS, label: "訂單", icon: ICONS.Orders },
           { tab: AppTab.PROFILE, label: "設定", icon: ICONS.Profile },
         ].map(item => (
           <button

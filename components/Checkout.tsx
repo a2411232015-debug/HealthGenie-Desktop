@@ -1,15 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import { ArrowLeft, MapPin, ChevronRight, Phone, Clock, CheckCircle2 } from 'lucide-react';
+import { trackEvent } from '../utils/merchantAnalytics';
 import { CheckoutData } from './ShoppingCart';
+
+import { Order, OrderStatus } from '../types';
 
 interface CheckoutProps {
   data: CheckoutData | null;
   onBack: () => void;
+  onPlaceOrder?: (orderId: string) => void;
 }
 
-export default function Checkout({ data, onBack }: CheckoutProps) {
+export default function Checkout({ data, onBack, onPlaceOrder }: CheckoutProps) {
   const [deliveryMode, setDeliveryMode] = useState<'外送' | '自取'>('外送');
   const [needInvoice, setNeedInvoice] = useState(true);
+  const [showSuccess, setShowSuccess] = useState(false);
 
   // 防呆機制：若無資料則強制返回
   useEffect(() => {
@@ -31,10 +36,99 @@ export default function Checkout({ data, onBack }: CheckoutProps) {
   };
   const total = Math.max(0, financials.subtotal + financials.deliveryFee + financials.serviceFee - financials.discount);
 
+  const handlePlaceOrder = () => {
+    if (!data) return;
+
+    // 1. Create Order
+    const newOrderId = `HG${new Date().toISOString().replace(/[-:T.]/g, '').substring(0, 14)}`;
+    
+    // Store name is from first item or "多間商店"
+    const storeName = data.items && data.items.length > 0 
+      ? Array.from(new Set(data.items.map(i => i.storeName))).join(' & ') 
+      : 'HealthGenie';
+
+    const newOrder: Order = {
+      orderId: newOrderId,
+      storeName: storeName,
+      storePhone: '0912-345-678', // mock
+      items: data.items || [],
+      totalAmount: total,
+      deliveryFee: financials.deliveryFee,
+      serviceFee: financials.serviceFee,
+      discount: financials.discount,
+      address: '台北市大安區安和路一段165號', // mock
+      estimatedArrival: '11:51 PM', // mock
+      createdAt: new Date().toISOString(),
+      status: OrderStatus.PENDING,
+      paymentMethod: 'LINE Pay',
+      note: ''
+    };
+
+    // 2. Save to localStorage
+    const savedOrders = localStorage.getItem('user_orders');
+    let orders: Order[] = [];
+    if (savedOrders) {
+      try { orders = JSON.parse(savedOrders); } catch(e) {}
+    }
+    orders.unshift(newOrder); // Add to top
+    localStorage.setItem('user_orders', JSON.stringify(orders));
+    window.dispatchEvent(new Event('orders_updated'));
+
+    // Track event
+    trackEvent('order_created', {
+      storeName: storeName,
+      amount: data.subtotal,
+      metadata: {
+        orderId: newOrderId,
+        itemsCount: data.itemsCount,
+        paymentMethod: newOrder.paymentMethod,
+        deliveryFee: newOrder.deliveryFee,
+        serviceFee: newOrder.serviceFee,
+        discount: newOrder.discount
+      }
+    });
+
+    // 3. Clear from cart
+    if (data.items) {
+      const savedCart = localStorage.getItem('user_cart');
+      if (savedCart) {
+        try {
+          const parsedCart = JSON.parse(savedCart);
+          // Remove items that have matching name in data.items
+          const checkedOutItemNames = new Set(data.items.map(i => i.itemName));
+          
+          const newCart = parsedCart.map((store: any) => ({
+            ...store,
+            products: store.products.filter((p: any) => !checkedOutItemNames.has(p.name))
+          })).filter((store: any) => store.products.length > 0);
+          
+          localStorage.setItem('user_cart', JSON.stringify(newCart));
+        } catch(e) {}
+      }
+    }
+
+    // 4. Show success & Navigate
+    setShowSuccess(true);
+    setTimeout(() => {
+      setShowSuccess(false);
+      onPlaceOrder?.(newOrderId);
+    }, 1500);
+  };
+
   if (!data) return null;
 
   return (
     <div className="bg-slate-50 min-h-full pb-24 md:pb-8 flex flex-col relative w-full h-full animate-in fade-in slide-in-from-right-4 duration-300">
+      
+      {/* Success Toast */}
+      {showSuccess && (
+        <div className="fixed top-8 left-1/2 -translate-x-1/2 z-50 animate-in fade-in slide-in-from-top-8 duration-300">
+          <div className="bg-teal-500 text-white px-6 py-3 rounded-full shadow-xl flex items-center gap-3 font-bold">
+            <CheckCircle2 className="w-5 h-5" />
+            訂單已送出，正在等待商家接單
+          </div>
+        </div>
+      )}
       {/* Mobile Top Header */}
       <div className="sticky top-0 z-20 bg-white px-4 py-4 flex items-center justify-between shadow-sm md:hidden w-full shrink-0">
         <button onClick={onBack} className="p-2 -ml-2 rounded-full hover:bg-slate-100 text-slate-700">
@@ -225,7 +319,10 @@ export default function Checkout({ data, onBack }: CheckoutProps) {
           
           {/* Desktop Sticky Area (Only visible naturally since we're in right col) */}
           <div className="hidden md:block">
-            <button className="w-full py-4 bg-teal-500 hover:bg-teal-600 text-white rounded-xl font-bold text-lg shadow-[0_8px_20px_-6px_rgba(20,184,166,0.5)] transition-all active:scale-95 text-center block">
+            <button 
+              onClick={handlePlaceOrder}
+              className="w-full py-4 bg-teal-500 hover:bg-teal-600 text-white rounded-xl font-bold text-lg shadow-[0_8px_20px_-6px_rgba(20,184,166,0.5)] transition-all active:scale-95 text-center block"
+            >
               下訂單
             </button>
             <p className="text-center text-xs text-slate-400 mt-4 font-medium">按下訂單即表示您同意 HealthGenie 服務條款</p>
@@ -235,7 +332,10 @@ export default function Checkout({ data, onBack }: CheckoutProps) {
 
       {/* Mobile Sticky Bottom Bar */}
       <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-slate-100 shadow-[0_-8px_30px_rgba(0,0,0,0.08)] md:hidden z-20 pb-safe">
-        <button className="w-full py-4 bg-teal-500 hover:bg-teal-500 text-white rounded-xl font-bold text-lg shadow-[0_8px_20px_-6px_rgba(20,184,166,0.5)] transition-all active:scale-95 text-center block focus:bg-teal-600">
+        <button 
+          onClick={handlePlaceOrder}
+          className="w-full py-4 bg-teal-500 hover:bg-teal-500 text-white rounded-xl font-bold text-lg shadow-[0_8px_20px_-6px_rgba(20,184,166,0.5)] transition-all active:scale-95 text-center block focus:bg-teal-600"
+        >
           下訂單 • ${total}
         </button>
       </div>

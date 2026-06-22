@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { Trash2, Plus, Minus, AlertTriangle } from 'lucide-react';
 import { generateHealthWarnings } from '../utils/health';
+import { trackEvent } from '../utils/merchantAnalytics';
 
 // --- Mock Data ---
 const MOCK_DATA = [
@@ -56,6 +57,14 @@ const MOCK_DATA = [
 export interface CheckoutData {
   itemsCount: number;
   subtotal: number;
+  items: Array<{
+    itemName: string;
+    quantity: number;
+    price: number;
+    customOptions?: string[];
+    imageUrl?: string;
+    storeName: string;
+  }>;
 }
 
 interface ShoppingCartProps {
@@ -63,7 +72,21 @@ interface ShoppingCartProps {
 }
 
 export default function ShoppingCart({ onCheckout }: ShoppingCartProps) {
-  const [cart, setCart] = useState(MOCK_DATA);
+  const [cart, setCart] = useState(() => {
+    const saved = localStorage.getItem('user_cart');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      } catch(e) {}
+    }
+    return MOCK_DATA;
+  });
+  
+  React.useEffect(() => {
+    localStorage.setItem('user_cart', JSON.stringify(cart));
+  }, [cart]);
+
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   // 取得全部可選商品的 id 陣列
@@ -400,7 +423,38 @@ export default function ShoppingCart({ onCheckout }: ShoppingCartProps) {
               </div>
             </div>
             <button 
-              onClick={() => onCheckout?.({ itemsCount: totalCount, subtotal: totalPrice })}
+              onClick={() => {
+                // Collect selected items
+                const selectedItems: CheckoutData['items'] = [];
+                cart.forEach(store => {
+                  store.products.forEach(p => {
+                    if (selectedIds.has(p.id)) {
+                      const options: string[] = [];
+                      if ((p as any).customizations) options.push(...(p as any).customizations);
+                      if ((p as any).userRemark) options.push(`備註: ${(p as any).userRemark}`);
+                      
+                      selectedItems.push({
+                        itemName: p.name,
+                        quantity: p.quantity,
+                        price: p.price,
+                        customOptions: options.length > 0 ? options : undefined,
+                        imageUrl: p.imageUrl,
+                        storeName: store.storeName,
+                      });
+                    }
+                  });
+                });
+                
+                trackEvent('checkout', {
+                  amount: totalPrice,
+                  metadata: {
+                    itemsCount: totalCount,
+                    selectedItemsCount: selectedItems.length
+                  }
+                });
+
+                onCheckout?.({ itemsCount: totalCount, subtotal: totalPrice, items: selectedItems });
+              }}
               disabled={selectedIds.size === 0}
               className={`px-10 py-3.5 rounded-xl text-lg font-bold transition-all shadow-sm ${
                 selectedIds.size > 0 

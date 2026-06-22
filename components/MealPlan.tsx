@@ -3,6 +3,7 @@ import { ICONS, MOCK_STATS } from '../constants';
 import { MealRecommendation, UserProfile } from '../types';
 import { calculateHealthTargets, generateHealthWarnings } from '../utils/health';
 import { MapPin, Navigation, Info, SlidersHorizontal, X, Check, Store, Minus, Plus, ShoppingCart, AlertTriangle } from 'lucide-react';
+import { trackEvent } from '../utils/merchantAnalytics';
 
 interface MealPlanProps {
   userProfile: UserProfile;
@@ -20,6 +21,8 @@ export const MealPlan: React.FC<MealPlanProps> = ({ userProfile, meals }) => {
   // Filters State
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [selectedMeal, setSelectedMeal] = useState<MealRecommendation | null>(null);
+  const [isAddingToCart, setIsAddingToCart] = useState(false);
+  const [addedSuccess, setAddedSuccess] = useState(false);
   
   // Customization States
   const [mealQuantity, setMealQuantity] = useState(1);
@@ -109,9 +112,14 @@ export const MealPlan: React.FC<MealPlanProps> = ({ userProfile, meals }) => {
       });
   }, [remainingBudget, meals, filters]);
 
-  const handleNavigation = (name: string, merchant: string) => {
+  const handleNavigation = (meal: MealRecommendation) => {
+    trackEvent('navigate_store', {
+      mealId: meal.id,
+      mealName: meal.name,
+      storeName: meal.merchant
+    });
     // Construct Google Maps Search URL
-    const query = encodeURIComponent(`${merchant} ${name}`);
+    const query = encodeURIComponent(`${meal.merchant} ${meal.name}`);
     const url = `https://www.google.com/maps/search/?api=1&query=${query}`;
     window.open(url, '_blank');
   };
@@ -127,17 +135,123 @@ export const MealPlan: React.FC<MealPlanProps> = ({ userProfile, meals }) => {
   };
 
   const openMealModal = (meal: MealRecommendation) => {
+    trackEvent('click_meal', {
+      mealId: meal.id,
+      mealName: meal.name,
+      storeName: meal.merchant
+    });
     setSelectedMeal(meal);
     setMealQuantity(1);
     setBaseOption('正常飯量');
     setFlavorOptions([]);
     setExtraOptions([]);
     setUserRemark('');
+    setAddedSuccess(false);
+    setIsAddingToCart(false);
   };
 
   const closeMealModal = () => {
     setSelectedMeal(null);
   };
+
+  const handleAddToCart = () => {
+    if (!dynamicMeal) return;
+    setIsAddingToCart(true);
+
+    // 1. Prepare product payload
+    const customizations = [
+      baseOption !== '正常飯量' ? baseOption : null, 
+      ...flavorOptions, 
+      ...extraOptions
+    ].filter(Boolean) as string[];
+
+    const newProduct = {
+      id: `p_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+      name: dynamicMeal.name,
+      variant: `${dynamicMeal.calories ?? 0} kcal, P: ${dynamicMeal.macros?.protein ?? 0}g`,
+      price: dynamicMeal.price,
+      quantity: mealQuantity,
+      imageUrl: dynamicMeal.imageUrl,
+      macros: dynamicMeal.macros,
+      customizations,
+      userRemark
+    };
+
+    // 2. Read cart from localStorage
+    let currentCart: any[] = [];
+    try {
+      const saved = localStorage.getItem('user_cart');
+      if (saved) {
+        currentCart = JSON.parse(saved);
+        if (!Array.isArray(currentCart)) currentCart = [];
+      } else {
+        // If no cart exists, maybe we should seed it or just start empty.
+        // We'll start empty since the user explicitly added an item.
+      }
+    } catch (e) {
+      currentCart = [];
+    }
+
+    // 3. Find or create store
+    let storeIndex = currentCart.findIndex((s: any) => s.storeName === dynamicMeal.merchant);
+    if (storeIndex === -1) {
+      currentCart.push({
+        storeId: `s_${Date.now()}`,
+        storeName: dynamicMeal.merchant,
+        products: []
+      });
+      storeIndex = currentCart.length - 1;
+    }
+
+    // 4. Check if same product with same customizations exists
+    const storeProducts = currentCart[storeIndex].products;
+    const existingProductIndex = storeProducts.findIndex((p: any) => {
+      if (p.name !== newProduct.name) return false;
+      if (p.userRemark !== newProduct.userRemark) return false;
+      
+      const pCust = p.customizations || [];
+      const newCust = newProduct.customizations || [];
+      if (pCust.length !== newCust.length) return false;
+      
+      const sortedPCust = [...pCust].sort();
+      const sortedNewCust = [...newCust].sort();
+      return sortedPCust.every((val, index) => val === sortedNewCust[index]);
+    });
+
+    if (existingProductIndex !== -1) {
+      // Merge quantity
+      storeProducts[existingProductIndex].quantity += newProduct.quantity;
+    } else {
+      // Add new
+      storeProducts.push(newProduct);
+    }
+
+    // 5. Save back to localStorage
+    localStorage.setItem('user_cart', JSON.stringify(currentCart));
+
+    // 6. Track event
+    trackEvent('add_to_cart', {
+      mealId: dynamicMeal.id,
+      mealName: dynamicMeal.name,
+      storeName: dynamicMeal.merchant,
+      amount: dynamicMeal.price * mealQuantity,
+      metadata: {
+        quantity: mealQuantity,
+        customizations,
+        userRemark
+      }
+    });
+
+    // 7. Show success state and close modal
+    setAddedSuccess(true);
+    setTimeout(() => {
+      closeMealModal();
+    }, 1200);
+  };
+
+  React.useEffect(() => {
+    trackEvent('view_menu');
+  }, []);
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500 max-w-5xl mx-auto relative">
@@ -364,7 +478,7 @@ export const MealPlan: React.FC<MealPlanProps> = ({ userProfile, meals }) => {
                     C:{meal.macros.carbs}g F:{meal.macros.fat}g
                   </div>
                   <button
-                    onClick={() => handleNavigation(meal.name, meal.merchant)}
+                    onClick={() => handleNavigation(meal)}
                     className="bg-gray-100 text-gray-700 hover:bg-gray-200 px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors"
                   >
                     <Navigation className="w-3 h-3" />
@@ -562,21 +676,24 @@ export const MealPlan: React.FC<MealPlanProps> = ({ userProfile, meals }) => {
                     </button>
                   </div>
                   <button 
-                    onClick={() => {
-                      // 打包的商品物件包含 customizations 與 userRemark (供 ShoppingCart 使用)
-                      const cartPayload = {
-                         ...dynamicMeal,
-                         quantity: mealQuantity,
-                         customizations: [baseOption !== '正常飯量' ? baseOption : null, ...flavorOptions, ...extraOptions].filter(Boolean),
-                         userRemark
-                      };
-                      console.log('Added to cart:', cartPayload);
-                      closeMealModal();
-                    }}
-                    className="flex-1 py-4 bg-teal-500 hover:bg-teal-600 text-white rounded-xl font-bold flex items-center justify-center gap-2 transition-colors active:scale-95 shadow-lg shadow-teal-500/30"
+                    onClick={handleAddToCart}
+                    disabled={isAddingToCart}
+                    className={`flex-1 py-4 rounded-xl font-bold flex items-center justify-center gap-2 transition-all shadow-lg ${
+                      addedSuccess 
+                        ? 'bg-emerald-500 text-white shadow-emerald-500/30' 
+                        : 'bg-teal-500 hover:bg-teal-600 text-white shadow-teal-500/30 active:scale-95'
+                    }`}
                   >
-                    <ShoppingCart className="w-5 h-5" />
-                    加入購物車 - ${(dynamicMeal.price * mealQuantity).toLocaleString()}
+                    {addedSuccess ? (
+                      <>
+                        <Check className="w-5 h-5" />已加入購物車
+                      </>
+                    ) : (
+                      <>
+                        <ShoppingCart className="w-5 h-5" />
+                        加入購物車 - ${(dynamicMeal.price * mealQuantity).toLocaleString()}
+                      </>
+                    )}
                   </button>
                 </div>
               </div>

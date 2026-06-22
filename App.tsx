@@ -6,6 +6,8 @@ import { Profile } from './components/Profile';
 import { AdminPanel } from './components/AdminPanel';
 import ShoppingCart, { CheckoutData } from './components/ShoppingCart';
 import Checkout from './components/Checkout';
+import { OrderListPage } from './components/OrderListPage';
+import { OrderDetailPage } from './components/OrderDetailPage';
 import { ActivityLevel, AppTab, Gender, UserProfile, MealRecommendation, DailyStats, WeightData } from './types';
 import { MOCK_MEALS, MOCK_STATS } from './constants';
 
@@ -76,6 +78,7 @@ const App: React.FC = () => {
 
   const [apiKeyMissing, setApiKeyMissing] = useState(false);
   const [checkoutData, setCheckoutData] = useState<CheckoutData | null>(null);
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
 
   // -- Persistence Effects --
   useEffect(() => { localStorage.setItem('userProfile', JSON.stringify(userProfile)); }, [userProfile]);
@@ -148,6 +151,10 @@ const App: React.FC = () => {
           <Checkout 
             data={checkoutData}
             onBack={() => setCurrentTab(AppTab.SHOPPING_CART)} 
+            onPlaceOrder={(orderId) => {
+              setSelectedOrderId(orderId);
+              setCurrentTab(AppTab.ORDER_DETAIL);
+            }}
           />
         );
       case AppTab.PROFILE:
@@ -171,6 +178,22 @@ const App: React.FC = () => {
               setMeals(prev => prev.filter(m => m.id !== mealId));
             }}
             onBack={() => setCurrentTab(AppTab.DASHBOARD)}
+          />
+        );
+      case AppTab.ORDERS:
+        return (
+          <OrderListPage 
+            onOrderClick={(orderId) => {
+              setSelectedOrderId(orderId);
+              setCurrentTab(AppTab.ORDER_DETAIL);
+            }} 
+          />
+        );
+      case AppTab.ORDER_DETAIL:
+        return (
+          <OrderDetailPage 
+            orderId={selectedOrderId} 
+            onBack={() => setCurrentTab(AppTab.ORDERS)} 
           />
         );
       default:

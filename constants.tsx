@@ -32,9 +32,12 @@ import {
   Moon,
   List,
   X,
-  ShoppingCart
+  ShoppingCart,
+  ClipboardList,
+  ArrowLeft,
+  Phone
 } from 'lucide-react';
-import { MealRecommendation, TaskCategory, TaskItem } from './types';
+import { MealRecommendation, TaskCategory, TaskItem, Order, OrderStatus } from './types';
 
 export const ICONS = {
   Dashboard: <LayoutDashboard className="w-5 h-5" />,
@@ -69,7 +72,10 @@ export const ICONS = {
   Moon: <Moon className="w-5 h-5" />,
   List: <List className="w-4 h-4" />,
   Close: <X className="w-4 h-4" />,
-  ShoppingCart: <ShoppingCart className="w-5 h-5" />
+  ShoppingCart: <ShoppingCart className="w-5 h-5" />,
+  Orders: <ClipboardList className="w-5 h-5" />,
+  ArrowLeft: <ArrowLeft className="w-5 h-5" />,
+  Phone: <Phone className="w-5 h-5" />
 };
 
 export const MOCK_STATS = {
@@ -198,5 +204,121 @@ export const MOCK_MEALS: MealRecommendation[] = [
     macros: { protein: 25, fat: 5, carbs: 40, sugar: 15, sodium: 120, fiber: 5 },
     imageUrl: 'https://images.unsplash.com/photo-1482049016688-2d3e1b311543?auto=format&fit=crop&w=800&q=80',
     price: 140
+  }
+];
+
+export const MOCK_ORDERS: Order[] = [
+  {
+    orderId: 'HG20260622001',
+    storeName: 'Muscle Fuel 健康餐',
+    storePhone: '02-2771-1234',
+    items: [
+      { itemName: '舒肥雞胸藜麥餐盒', quantity: 2, price: 160, customOptions: ['飯量減半', '去糖'], imageUrl: 'https://images.unsplash.com/photo-1532550907401-a500c9a57435?auto=format&fit=crop&w=80&q=80' },
+      { itemName: '希臘優格高蛋白碗', quantity: 1, price: 140, imageUrl: 'https://images.unsplash.com/photo-1482049016688-2d3e1b311543?auto=format&fit=crop&w=80&q=80' }
+    ],
+    totalAmount: 490,
+    deliveryFee: 30,
+    serviceFee: 15,
+    discount: 15,
+    address: '台北市大安區安和路一段165號',
+    estimatedArrival: '18:40',
+    createdAt: '2026-06-22T17:55:00',
+    status: OrderStatus.PENDING,
+    paymentMethod: 'LINE Pay',
+    note: '醬料另外放'
+  },
+  {
+    orderId: 'HG20260622002',
+    storeName: 'Daily Fresh 輕食',
+    storePhone: '02-2345-6789',
+    items: [
+      { itemName: '香煎鮭魚五穀飯', quantity: 1, price: 220, customOptions: ['加量蔬菜'], imageUrl: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=80&q=80' },
+      { itemName: '炙燒鮪魚波奇碗', quantity: 1, price: 190, imageUrl: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=80&q=80' }
+    ],
+    totalAmount: 440,
+    deliveryFee: 30,
+    serviceFee: 15,
+    discount: 0,
+    address: '台北市信義區松仁路100號',
+    estimatedArrival: '19:10',
+    createdAt: '2026-06-22T18:30:00',
+    status: OrderStatus.PREPARING,
+    paymentMethod: 'LINE Pay',
+    note: ''
+  },
+  {
+    orderId: 'HG20260622003',
+    storeName: '老張健康滷',
+    storePhone: '02-2888-9999',
+    items: [
+      { itemName: '低脂牛腱滷味拼盤', quantity: 2, price: 130, customOptions: ['少鹽', '加滷蛋'], imageUrl: 'https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=80&q=80' }
+    ],
+    totalAmount: 290,
+    deliveryFee: 30,
+    serviceFee: 15,
+    discount: 15,
+    address: '台北市中山區南京東路二段88號',
+    estimatedArrival: '12:30',
+    createdAt: '2026-06-22T11:50:00',
+    status: OrderStatus.WAITING_PICKUP,
+    paymentMethod: 'LINE Pay',
+    note: '大樓請打電話'
+  },
+  {
+    orderId: 'HG20260621004',
+    storeName: 'Halo Poke',
+    storePhone: '02-2700-1122',
+    items: [
+      { itemName: '炙燒鮪魚波奇碗', quantity: 1, price: 190, imageUrl: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=80&q=80' },
+      { itemName: '舒肥雞胸藜麥餐盒', quantity: 1, price: 160, customOptions: ['加蛋白質'], imageUrl: 'https://images.unsplash.com/photo-1532550907401-a500c9a57435?auto=format&fit=crop&w=80&q=80' }
+    ],
+    totalAmount: 380,
+    deliveryFee: 30,
+    serviceFee: 15,
+    discount: 15,
+    address: '台北市大安區復興南路一段200號',
+    estimatedArrival: '13:15',
+    createdAt: '2026-06-21T12:40:00',
+    status: OrderStatus.DELIVERING,
+    paymentMethod: 'LINE Pay',
+    note: ''
+  },
+  {
+    orderId: 'HG20260620005',
+    storeName: 'Yogurt House',
+    storePhone: '02-2711-3344',
+    items: [
+      { itemName: '希臘優格高蛋白碗', quantity: 2, price: 140, customOptions: ['加燕麥', '蜂蜜減量'], imageUrl: 'https://images.unsplash.com/photo-1482049016688-2d3e1b311543?auto=format&fit=crop&w=80&q=80' },
+      { itemName: '香煎鮭魚五穀飯', quantity: 1, price: 220, imageUrl: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=80&q=80' }
+    ],
+    totalAmount: 530,
+    deliveryFee: 30,
+    serviceFee: 15,
+    discount: 15,
+    address: '台北市松山區民生東路三段50號',
+    estimatedArrival: '18:00',
+    createdAt: '2026-06-20T17:20:00',
+    status: OrderStatus.COMPLETED,
+    paymentMethod: 'LINE Pay',
+    note: '請準時送達'
+  },
+  {
+    orderId: 'HG20260619006',
+    storeName: 'Burger Fit',
+    storePhone: '02-2766-5500',
+    items: [
+      { itemName: '增肌牛肉漢堡 (無麵包)', quantity: 1, price: 200, imageUrl: 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?auto=format&fit=crop&w=80&q=80' }
+    ],
+    totalAmount: 230,
+    deliveryFee: 30,
+    serviceFee: 15,
+    discount: 15,
+    address: '台北市大安區忠孝東路四段100號',
+    estimatedArrival: '19:30',
+    createdAt: '2026-06-19T18:45:00',
+    status: OrderStatus.CANCELLED,
+    paymentMethod: 'LINE Pay',
+    note: '',
+    cancelReason: '商家暫停營業，無法接單'
   }
 ];

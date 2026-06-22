@@ -63,6 +63,44 @@ export enum AppTab {
   ADMIN = 'admin',
   SHOPPING_CART = 'shopping_cart',
   CHECKOUT = 'checkout',
+  ORDERS = 'orders',
+  ORDER_DETAIL = 'order_detail',
+}
+
+export enum OrderStatus {
+  PENDING = 'pending',
+  PREPARING = 'preparing',
+  WAITING_PICKUP = 'waiting_pickup',
+  DELIVERING = 'delivering',
+  COMPLETED = 'completed',
+  CANCELLED = 'cancelled',
+}
+
+export interface OrderItem {
+  itemName: string;
+  quantity: number;
+  price: number;
+  customOptions?: string[];
+  imageUrl?: string;
+}
+
+export interface Order {
+  orderId: string;
+  storeName: string;
+  storePhone: string;
+  items: OrderItem[];
+  totalAmount: number;
+  deliveryFee: number;
+  serviceFee: number;
+  discount: number;
+  address: string;
+  estimatedArrival: string;
+  createdAt: string;
+  status: OrderStatus;
+  paymentMethod: string;
+  note: string;
+  cancelReason?: string;
+  completedAt?: string;
 }
 
 export enum TaskCategory {
@@ -77,4 +115,18 @@ export interface TaskItem {
   category: TaskCategory;
   isCompleted: boolean;
   description?: string;
+}
+
+export type AnalyticsEventType = 'view_menu' | 'click_meal' | 'add_to_cart' | 'checkout' | 'order_created' | 'navigate_store';
+
+export interface AnalyticsEvent {
+  eventId: string;
+  eventType: AnalyticsEventType;
+  timestamp: string;
+  isMock: boolean;
+  mealId?: string;
+  mealName?: string;
+  storeName?: string;
+  amount?: number;
+  metadata?: Record<string, any>;
 }
