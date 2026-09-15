@@ -1,0 +1,9 @@
+{
+  "name": "Copy of HealthGenie AI",
+  "description": "A personal health companion featuring AI-powered meal planning with location-based recommendations, food image analysis, and creative image editing tools.",
+  "requestFramePermissions": [
+    "geolocation",
+    "camera",
+    "microphone"
+  ]
+}
