@@ -96,6 +96,16 @@ as $$
   select coalesce((select p.is_admin from public.profiles p where p.id = auth.uid()), false);
 $$;
 
+-- 已註冊的正式會員（排除 Supabase 匿名登入產生的臨時帳號）
+create or replace function public.is_registered_user()
+returns boolean
+language sql
+stable
+set search_path = public
+as $$
+  select auth.uid() is not null and not coalesce((auth.jwt() ->> 'is_anonymous')::boolean, false);
+$$;
+
 -- 新註冊的帳號自動建立 profile
 create or replace function public.handle_new_user()
 returns trigger
@@ -912,7 +922,7 @@ using (
   or (select public.is_admin())
 );
 create policy merchants_insert on public.merchants for insert to authenticated
-with check (owner_id = (select auth.uid()) or (select public.is_admin()));
+with check ((owner_id = (select auth.uid()) and (select public.is_registered_user())) or (select public.is_admin()));
 create policy merchants_update on public.merchants for update to authenticated
 using (owner_id = (select auth.uid()) or (select public.is_admin()))
 with check (owner_id = (select auth.uid()) or (select public.is_admin()));
@@ -961,11 +971,11 @@ using (
 -- 健康紀錄：只有本人
 grant select, insert, update, delete on public.food_logs to authenticated;
 create policy food_logs_owner on public.food_logs for all to authenticated
-using (user_id = (select auth.uid())) with check (user_id = (select auth.uid()));
+using (user_id = (select auth.uid())) with check (user_id = (select auth.uid()) and (select public.is_registered_user()));
 
 grant select, insert, update, delete on public.weight_logs to authenticated;
 create policy weight_logs_owner on public.weight_logs for all to authenticated
-using (user_id = (select auth.uid())) with check (user_id = (select auth.uid()));
+using (user_id = (select auth.uid())) with check (user_id = (select auth.uid()) and (select public.is_registered_user()));
 
 -- 函式權限
 revoke execute on function public.place_order(uuid, jsonb, text, text, text, text, text, text, integer) from public, anon;
@@ -978,6 +988,7 @@ grant execute on function public.place_order(uuid, jsonb, text, text, text, text
 grant execute on function public.update_order_status(uuid, text, text) to authenticated;
 grant execute on function public.consume_ai_quota(integer) to authenticated;
 grant execute on function public.is_admin() to anon, authenticated;
+grant execute on function public.is_registered_user() to anon, authenticated;
 grant execute on function public.is_open_at(jsonb, timestamptz) to anon, authenticated;
 
 -- ---------------------------------------------------------------------

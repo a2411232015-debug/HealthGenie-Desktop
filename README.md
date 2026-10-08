@@ -133,7 +133,7 @@ npm test          # 價格、營業時間、AI 函式的單元測試
 npm run build     # 型別檢查與正式建置
 ```
 
-資料庫測試（權限、下單、訂單流程，共 96 項）在 GitHub Actions 的 **Check** 流程會自動執行，也可以在任何 PostgreSQL 16 上手動跑：
+資料庫測試（權限、下單、訂單流程，共 98 項）在 GitHub Actions 的 **Check** 流程會自動執行，也可以在任何 PostgreSQL 16 上手動跑：
 
 ```bash
 psql -f supabase/tests/supabase_stub.sql

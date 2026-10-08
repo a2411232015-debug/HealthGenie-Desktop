@@ -224,6 +224,10 @@ select tests.ok((select total = 195 and order_number ~ '-0002$' from t_result), 
 select tests.act_as('d0000000-0000-0000-0000-000000000004', true);
 select tests.fails($$select public.place_order('e0000000-0000-0000-0000-00000000000e', '[{"productId":"f0000000-0000-0000-0000-000000000003","quantity":2,"optionIds":[]}]', 'pickup', '路人', '0912345678', '', '', 'req-anon-user-01')$$,
   '請先登入會員', '匿名帳號不能下單');
+select tests.fails($$insert into public.merchants (name, phone, address) values ('匿名開店', '0223456789', '台北市大安區某路1號')$$,
+  'row-level security', '匿名帳號不能申請開店');
+select tests.fails($$insert into public.food_logs (name, calories) values ('匿名紀錄', 100)$$,
+  'row-level security', '匿名帳號不能寫飲食紀錄');
 select tests.act_as(null);
 select tests.fails($$select public.place_order('e0000000-0000-0000-0000-00000000000e', '[]', 'pickup', '路人', '0912345678', '', '', 'req-not-logged-01')$$,
   'permission denied', '未登入不能下單');
