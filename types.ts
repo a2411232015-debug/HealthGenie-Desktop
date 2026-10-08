@@ -1,3 +1,5 @@
+// ===== 使用者 =====
+
 export enum ActivityLevel {
   SEDENTARY = '久坐（辦公室工作）',
   LIGHT = '輕度（每週運動 1-3 天）',
@@ -10,28 +12,63 @@ export enum Gender {
   FEMALE = '女',
 }
 
-export interface UserProfile {
+export interface HealthProfile {
   gender: Gender;
   age: number;
   height: number;
   weight: number;
   targetWeight?: number;
   activityLevel: ActivityLevel;
-  phone?: string;
-  address?: string;
-  dietaryPreferences?: string[];
 }
 
-export interface DailyStats {
-  calories: { current: number; target: number };
-  steps: { current: number; target: number };
-  water: { current: number; target: number };
+export interface Profile {
+  id: string;
+  displayName: string;
+  phone: string;
+  defaultAddress: string;
+  health: Partial<HealthProfile>;
+  isAdmin: boolean;
 }
 
-export interface WeightData {
-  date: string;
-  weight: number;
+// ===== 店家 =====
+
+export interface OpeningSlot {
+  /** 0 = 週日 … 6 = 週六 */
+  day: number;
+  /** HH:MM，24 小時制；close 小於等於 open 代表營業到隔天凌晨 */
+  open: string;
+  close: string;
 }
+
+export type MerchantStatus = 'pending' | 'approved' | 'rejected' | 'suspended';
+
+export interface Merchant {
+  id: string;
+  ownerId: string;
+  name: string;
+  description: string;
+  phone: string;
+  address: string;
+  lat: number | null;
+  lng: number | null;
+  coverImageUrl: string;
+  openingHours: OpeningSlot[];
+  pickupEnabled: boolean;
+  deliveryEnabled: boolean;
+  deliveryFee: number;
+  serviceFee: number;
+  discount: number;
+  minOrderAmount: number;
+  prepMinutes: number;
+  acceptingOrders: boolean;
+  status: MerchantStatus;
+  reviewNote: string;
+  createdAt: string;
+}
+
+export type MerchantInput = Omit<Merchant, 'id' | 'ownerId' | 'status' | 'reviewNote' | 'createdAt'>;
+
+// ===== 餐點 =====
 
 export interface Nutrition {
   calories: number;
@@ -43,15 +80,7 @@ export interface Nutrition {
   sugar: number;
 }
 
-export interface NutritionDelta {
-  calories: number;
-  protein: number;
-  fat: number;
-  carbs: number;
-  fiber: number;
-  sodium: number;
-  sugar?: number;
-}
+export type NutritionKey = keyof Nutrition;
 
 export interface ProductOption {
   id: string;
@@ -76,63 +105,48 @@ export interface OptionGroup {
   options: ProductOption[];
 }
 
-export interface MealRecommendation {
+export interface Product {
   id: string;
   merchantId: string;
   name: string;
-  merchant: string;
-  distance: number;
-  calories?: number;
-  macros?: Partial<Omit<Nutrition, 'calories'>>;
-  imageUrl: string;
+  description: string;
+  category: string;
   price: number;
-  available: boolean;
+  imageUrl: string;
+  /** 未提供的營養素不會出現在物件裡 */
+  nutrition: Partial<Nutrition>;
+  allergens: string[];
   optionGroups: OptionGroup[];
+  available: boolean;
+  sortOrder: number;
 }
 
-export interface Merchant {
-  id: string;
-  name: string;
-  phone: string;
-  address: string;
-  lat: number;
-  lng: number;
-  hours: string;
-  deliveryFee: number;
-  serviceFee: number;
-  discount: number;
-  acceptingOrders: boolean;
-}
+export type ProductInput = Omit<Product, 'id' | 'merchantId'>;
 
-export interface SelectedOptionSnapshot {
+export const ALLERGENS = ['堅果', '花生', '蛋', '奶', '海鮮', '麩質', '大豆'] as const;
+
+// ===== 購物車 =====
+
+export interface SelectedOption {
   groupId: string;
   groupName: string;
   optionId: string;
   name: string;
   priceDelta: number;
-  nutritionDelta: NutritionDelta;
-}
-
-export interface PriceBreakdown {
-  basePrice: number;
-  optionPrice: number;
-  unitPrice: number;
 }
 
 export interface CartItem {
-  id: string;
+  /** 同一餐點、同樣選項、同樣備註會合併成同一個 key */
+  key: string;
   productId: string;
-  merchantId: string;
-  merchantName: string;
   name: string;
-  imageUrl?: string;
+  imageUrl: string;
   quantity: number;
   basePrice: number;
-  baseNutrition?: Nutrition;
-  selectedOptions: SelectedOptionSnapshot[];
-  priceBreakdown: PriceBreakdown;
-  unitNutrition: Nutrition;
-  userRemark?: string;
+  options: SelectedOption[];
+  remark: string;
+  unitPrice: number;
+  unitNutrition: Nutrition | null;
 }
 
 export interface Cart {
@@ -141,99 +155,96 @@ export interface Cart {
   items: CartItem[];
 }
 
-export interface AnalysisResult {
-  foodName: string;
-  calories: string;
-  nutrients: string;
-  advice: string;
-}
+// ===== 訂單 =====
 
-export enum AppTab {
-  DASHBOARD = 'dashboard',
-  MEAL_PLAN = 'meal_plan',
-  PROFILE = 'profile',
-  ADMIN = 'admin',
-  SHOPPING_CART = 'shopping_cart',
-  CHECKOUT = 'checkout',
-  ORDERS = 'orders',
-  ORDER_DETAIL = 'order_detail',
-}
+export type OrderStatus =
+  | 'pending'
+  | 'preparing'
+  | 'ready'
+  | 'delivering'
+  | 'completed'
+  | 'cancelled'
+  | 'rejected';
 
-export enum OrderStatus {
-  PENDING = 'pending',
-  PREPARING = 'preparing',
-  WAITING_DELIVERY = 'waiting_delivery',
-  DELIVERING = 'delivering',
-  COMPLETED = 'completed',
-  CANCELLED = 'cancelled',
-  REJECTED = 'rejected',
+export type Fulfillment = 'pickup' | 'delivery';
+
+export interface OrderItem {
+  productId: string;
+  name: string;
+  imageUrl: string;
+  quantity: number;
+  basePrice: number;
+  optionPrice: number;
+  unitPrice: number;
+  subtotal: number;
+  options: SelectedOption[];
+  remark: string;
+  unitNutrition: Nutrition | null;
 }
 
 export interface StatusHistoryEntry {
   status: OrderStatus;
-  timestamp: string;
-}
-
-export interface OrderItem extends CartItem {
-  itemName: string;
-  customOptions?: string[];
-  price: number;
-  subtotal: number;
+  at: string;
 }
 
 export interface Order {
-  orderId: string;
-  clientRequestId: string;
+  id: string;
+  orderNumber: string;
+  customerId: string;
   merchantId: string;
-  storeName: string;
-  storePhone: string;
+  status: OrderStatus;
+  fulfillment: Fulfillment;
   items: OrderItem[];
+  itemCount: number;
   subtotal: number;
-  totalAmount: number;
   deliveryFee: number;
   serviceFee: number;
   discount: number;
-  address: string;
-  estimatedArrival: string;
-  createdAt: string;
-  status: OrderStatus;
-  statusHistory: StatusHistoryEntry[];
-  paymentMethod: string;
+  total: number;
+  merchantName: string;
+  merchantPhone: string;
+  merchantAddress: string;
+  contactName: string;
+  contactPhone: string;
+  deliveryAddress: string;
   note: string;
-  cancelReason?: string;
-  completedAt?: string;
+  paymentMethod: 'cash';
+  paymentStatus: 'unpaid' | 'paid' | 'refunded';
+  estimatedReadyAt: string | null;
+  statusHistory: StatusHistoryEntry[];
+  cancelReason: string;
+  createdAt: string;
+  completedAt: string | null;
 }
 
-export enum TaskCategory {
-  EXERCISE = '運動',
-  NUTRITION = '飲食',
-  HABITS = '習慣',
-}
+// ===== 健康紀錄 =====
 
-export interface TaskItem {
+export interface FoodLog {
   id: string;
-  title: string;
-  category: TaskCategory;
-  isCompleted: boolean;
-  description?: string;
+  eatenAt: string;
+  name: string;
+  calories: number;
+  protein: number | null;
+  fat: number | null;
+  carbs: number | null;
+  source: 'manual' | 'order' | 'photo';
+  orderId: string | null;
 }
 
-export type AnalyticsEventType =
-  | 'view_menu'
-  | 'click_meal'
-  | 'add_to_cart'
-  | 'checkout'
-  | 'order_created'
-  | 'navigate_store';
+export type FoodLogInput = Omit<FoodLog, 'id'>;
 
-export interface AnalyticsEvent {
-  eventId: string;
-  eventType: AnalyticsEventType;
-  timestamp: string;
-  isMock: boolean;
-  mealId?: string;
-  mealName?: string;
-  storeName?: string;
-  amount?: number;
-  metadata?: Record<string, unknown>;
+export interface WeightLog {
+  date: string;
+  weight: number;
+}
+
+export interface FoodEstimate {
+  name: string;
+  calories: number;
+  protein: number;
+  fat: number;
+  carbs: number;
+  fiber?: number;
+  sodium?: number;
+  advice?: string;
 }

@@ -1,104 +1,89 @@
-import { ActivityLevel, Gender, UserProfile } from '../types';
+import { ActivityLevel, Gender, HealthProfile, Nutrition } from '../types';
 
 export interface HealthTargets {
   bmr: number;
   tdee: number;
   dailyCalories: number;
   macros: {
-    protein: number; // grams
-    carbs: number;   // grams
-    fat: number;     // grams
+    protein: number;
+    carbs: number;
+    fat: number;
   };
 }
 
-const getActivityMultiplier = (level: ActivityLevel): number => {
-  switch (level) {
-    case ActivityLevel.SEDENTARY: return 1.2;
-    case ActivityLevel.LIGHT: return 1.375;
-    case ActivityLevel.MODERATE: return 1.55;
-    case ActivityLevel.HEAVY: return 1.725;
-    default: return 1.2;
-  }
+const ACTIVITY_MULTIPLIER: Record<ActivityLevel, number> = {
+  [ActivityLevel.SEDENTARY]: 1.2,
+  [ActivityLevel.LIGHT]: 1.375,
+  [ActivityLevel.MODERATE]: 1.55,
+  [ActivityLevel.HEAVY]: 1.725,
 };
 
-// ==========================================
-// 核心生理運算引擎
-// 注意：這部分邏輯目前在前端執行。
-// 未來若需更複雜的個人化模型，建議遷移至後端 Python 服務。
-// ==========================================
-export const calculateHealthTargets = (profile: UserProfile): HealthTargets => {
-  const { weight, height, age, gender, activityLevel } = profile;
+export const isHealthProfileComplete = (health: Partial<HealthProfile> | undefined): health is HealthProfile =>
+  Boolean(
+    health
+    && (health.gender === Gender.MALE || health.gender === Gender.FEMALE)
+    && Number(health.age) >= 10 && Number(health.age) <= 120
+    && Number(health.height) >= 100 && Number(health.height) <= 250
+    && Number(health.weight) >= 20 && Number(health.weight) <= 400
+    && health.activityLevel && ACTIVITY_MULTIPLIER[health.activityLevel],
+  );
 
-  // 1. 計算 BMR (基礎代謝率) - 使用 Mifflin-St Jeor 公式
-  // Python 實作提示: 
-  // def calculate_bmr(weight, height, age, gender): ...
-  let bmr = (10 * weight) + (6.25 * height) - (5 * age);
-  
-  if (gender === Gender.MALE) {
-    bmr += 5;
-  } else {
-    bmr -= 161;
-  }
-
-  // 2. 計算 TDEE (每日總消耗熱量)
-  const tdee = bmr * getActivityMultiplier(activityLevel);
-
-  // 3. 設定熱量目標 (減脂模式：TDEE * 0.85)
-  // 這部分係數可根據用戶目標 (增肌/維持/減脂) 動態調整
-  const dailyCalories = Math.round(tdee * 0.85);
-
-  // 4. 計算營養素比例 (Protein 30%, Carbs 40%, Fat 30%)
-  // 轉換公式：蛋白質/碳水 = 4 kcal/g, 脂肪 = 9 kcal/g
-  const macros = {
-    protein: Math.round((dailyCalories * 0.30) / 4),
-    carbs: Math.round((dailyCalories * 0.40) / 4),
-    fat: Math.round((dailyCalories * 0.30) / 9),
-  };
-
+/**
+ * Mifflin-St Jeor 公式。目標體重比目前輕時以 TDEE 85% 作為每日熱量（溫和減脂），
+ * 想增重時 +10%，其餘維持 TDEE。三大營養素比例：蛋白質 30%、碳水 40%、脂肪 30%。
+ */
+export const calculateHealthTargets = (health: Partial<HealthProfile> | undefined): HealthTargets | null => {
+  if (!isHealthProfileComplete(health)) return null;
+  const base = 10 * health.weight + 6.25 * health.height - 5 * health.age;
+  const bmr = health.gender === Gender.MALE ? base + 5 : base - 161;
+  const tdee = bmr * ACTIVITY_MULTIPLIER[health.activityLevel];
+  const target = Number(health.targetWeight) || health.weight;
+  const factor = target < health.weight - 0.5 ? 0.85 : target > health.weight + 0.5 ? 1.1 : 1;
+  const dailyCalories = Math.round(tdee * factor);
   return {
     bmr: Math.round(bmr),
     tdee: Math.round(tdee),
     dailyCalories,
-    macros
+    macros: {
+      protein: Math.round((dailyCalories * 0.3) / 4),
+      carbs: Math.round((dailyCalories * 0.4) / 4),
+      fat: Math.round((dailyCalories * 0.3) / 9),
+    },
   };
 };
 
 export interface HealthWarning {
-  type: 'base' | 'info' | 'success' | 'warning' | 'danger';
+  level: 'info' | 'warning' | 'danger';
   text: string;
-  color: string;
 }
 
 export const generateHealthWarnings = (
-  meal: { calories: number; macros: { sodium?: number; carbs?: number; fiber?: number; protein?: number; sugar?: number; } },
-  userProfile: { tdee: number },
-  dailyIntake: number
+  nutrition: Nutrition | null,
+  dailyCalories: number | null,
+  consumedToday: number,
 ): HealthWarning[] => {
+  if (!nutrition) return [];
   const warnings: HealthWarning[] = [];
-  
-  if ((meal.macros.sodium ?? 0) > 800) {
-    warnings.push({
-      type: 'warning',
-      text: '⚠️ 此餐鈉含量較高，不建議高血壓族群頻繁食用。',
-      color: 'text-orange-600 font-medium'
-    });
+  if (nutrition.sodium > 800) {
+    warnings.push({ level: 'warning', text: '這份餐點鈉含量較高（超過 800 mg），需控制血壓者建議不要常吃。' });
   }
-
-  if ((meal.macros.carbs ?? 0) > 60) {
-    warnings.push({
-      type: 'warning',
-      text: '⚠️ 此餐碳水偏高，控糖者建議減少飯量。',
-      color: 'text-yellow-600 font-medium'
-    });
+  if (nutrition.carbs > 60) {
+    warnings.push({ level: 'warning', text: '碳水化合物偏高，控糖者可以選擇飯量減半。' });
   }
-
-  if (dailyIntake + meal.calories >= userProfile.tdee * 0.85) {
-    warnings.push({
-      type: 'danger',
-      text: '🛑 加總此餐後，你今天將攝取超過熱量預算 85%！',
-      color: 'text-red-600 font-bold'
-    });
+  if (dailyCalories && consumedToday + nutrition.calories > dailyCalories) {
+    warnings.push({ level: 'danger', text: `加上這份後，今天會超過熱量目標 ${dailyCalories} kcal。` });
+  } else if (nutrition.protein >= 25) {
+    warnings.push({ level: 'info', text: '高蛋白餐點，適合運動後或想維持肌肉量的你。' });
   }
-
   return warnings;
 };
+
+export const bmi = (health: Partial<HealthProfile>): number | null => {
+  const height = Number(health.height);
+  const weight = Number(health.weight);
+  if (!height || !weight) return null;
+  return Number((weight / (height / 100) ** 2).toFixed(1));
+};
+
+export const bmiLabel = (value: number): string =>
+  value < 18.5 ? '體重過輕' : value < 24 ? '健康體位' : value < 27 ? '體重過重' : '肥胖，建議諮詢醫師';

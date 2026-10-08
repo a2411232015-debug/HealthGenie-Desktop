@@ -7,47 +7,32 @@ export const ToastViewport: React.FC = () => {
   const timer = useRef<number | undefined>(undefined);
 
   useEffect(() => {
-    const display = (detail: ToastDetail) => {
+    const handleToast = (event: Event) => {
+      const detail = (event as CustomEvent<ToastDetail>).detail;
       if (!detail?.message) return;
       setToast(detail);
       window.clearTimeout(timer.current);
-      timer.current = window.setTimeout(() => setToast(null), 2800);
-    };
-    const handleToast = (event: Event) => display((event as CustomEvent<ToastDetail>).detail);
-    const handleUnimplementedAction = (event: Event) => {
-      const button = (event.target as HTMLElement | null)?.closest('button');
-      if (!button) return;
-      const label = button.textContent?.trim();
-      if (label === '完成' || label === '開始') {
-        display({ message: '此功能目前為展示版本，尚未開放。', type: 'info' });
-      }
+      timer.current = window.setTimeout(() => setToast(null), detail.type === 'error' ? 5000 : 3000);
     };
     window.addEventListener('healthgenie_toast', handleToast);
-    document.addEventListener('click', handleUnimplementedAction);
     return () => {
       window.removeEventListener('healthgenie_toast', handleToast);
-      document.removeEventListener('click', handleUnimplementedAction);
       window.clearTimeout(timer.current);
     };
   }, []);
 
   if (!toast) return null;
-
-  const styles = {
-    success: 'bg-emerald-600',
-    error: 'bg-red-600',
-    info: 'bg-slate-800',
-  }[toast.type];
+  const style = { success: 'bg-emerald-600', error: 'bg-red-600', info: 'bg-slate-800' }[toast.type];
   const icon = {
-    success: <CheckCircle2 className="w-5 h-5" />,
-    error: <AlertCircle className="w-5 h-5" />,
-    info: <Info className="w-5 h-5" />,
+    success: <CheckCircle2 className="h-5 w-5 shrink-0" />,
+    error: <AlertCircle className="h-5 w-5 shrink-0" />,
+    info: <Info className="h-5 w-5 shrink-0" />,
   }[toast.type];
 
   return (
-    <div role="status" aria-live="polite" className={`fixed top-5 left-1/2 -translate-x-1/2 z-[200] max-w-[calc(100vw-2rem)] px-5 py-3 rounded-xl text-white shadow-xl flex items-center gap-2 ${styles}`}>
+    <div role="status" aria-live="polite" className={`fixed left-1/2 top-5 z-[200] flex max-w-[calc(100vw-2rem)] -translate-x-1/2 items-center gap-2 rounded-xl px-5 py-3 text-white shadow-xl ${style}`}>
       {icon}
-      <span className="font-bold text-sm">{toast.message}</span>
+      <span className="text-sm font-bold">{toast.message}</span>
     </div>
   );
 };

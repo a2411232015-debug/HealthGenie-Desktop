@@ -1,59 +1,53 @@
 import React from 'react';
 import { CheckCircle2, Circle } from 'lucide-react';
-import { OrderStatus, StatusHistoryEntry } from '../types';
+import { Fulfillment, OrderStatus, StatusHistoryEntry } from '../types';
+import { formatTime } from '../utils/format';
 
-interface OrderProgressTimelineProps {
-  status: OrderStatus;
-  history?: StatusHistoryEntry[];
+interface Step {
+  key: OrderStatus;
+  label: string;
+  description: string;
 }
 
-const STEPS = [
-  { key: OrderStatus.PENDING, label: '等待商家接單', description: '商家正在確認訂單' },
-  { key: OrderStatus.PREPARING, label: '製作中', description: '餐點正在製作' },
-  { key: OrderStatus.WAITING_DELIVERY, label: '等待外送員', description: '餐點已完成，等待外送員' },
-  { key: OrderStatus.DELIVERING, label: '配送中', description: '餐點正在配送途中' },
-  { key: OrderStatus.COMPLETED, label: '已完成', description: '祝您用餐愉快' },
-] as const;
+const stepsFor = (fulfillment: Fulfillment): Step[] => [
+  { key: 'pending', label: '已送出訂單', description: '等待店家確認' },
+  { key: 'preparing', label: '店家製作中', description: '店家已接單，正在準備餐點' },
+  fulfillment === 'pickup'
+    ? { key: 'ready', label: '可以取餐', description: '餐點已完成，請到店取餐並付款' }
+    : { key: 'ready', label: '餐點完成', description: '準備出發配送' },
+  ...(fulfillment === 'delivery' ? [{ key: 'delivering' as OrderStatus, label: '配送中', description: '餐點正在路上，送達時付款' }] : []),
+  { key: 'completed', label: '已完成', description: '祝你用餐愉快' },
+];
 
-export const OrderProgressTimeline: React.FC<OrderProgressTimelineProps> = ({ status, history = [] }) => {
-  if (status === OrderStatus.CANCELLED || status === OrderStatus.REJECTED) return null;
-  const currentIndex = Math.max(0, STEPS.findIndex((step) => step.key === status));
-
+export const OrderProgressTimeline: React.FC<{ status: OrderStatus; fulfillment: Fulfillment; history: StatusHistoryEntry[] }> = ({ status, fulfillment, history }) => {
+  if (status === 'cancelled' || status === 'rejected') return null;
+  const steps = stepsFor(fulfillment);
+  const currentIndex = Math.max(0, steps.findIndex((step) => step.key === status));
   return (
-    <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-      <div className="flex flex-col gap-6">
-        {STEPS.map((step, index) => {
-          const completed = index < currentIndex || status === OrderStatus.COMPLETED;
-          const current = index === currentIndex && status !== OrderStatus.COMPLETED;
-          const timestamp = history.find((entry) => entry.status === step.key)?.timestamp;
-          return (
-            <div key={step.key} className="flex gap-4 relative">
-              {index < STEPS.length - 1 && (
-                <div className={`absolute left-3 top-8 bottom-[-24px] w-0.5 ${completed ? 'bg-teal-500' : 'bg-slate-200'}`} />
-              )}
-              <div className="relative z-10 shrink-0">
-                {completed ? (
-                  <CheckCircle2 className="w-6 h-6 text-teal-500" />
-                ) : current ? (
-                  <div className="relative flex items-center justify-center w-6 h-6">
-                    <span className="absolute w-full h-full rounded-full opacity-75 animate-ping bg-teal-400" />
-                    <span className="relative w-3 h-3 rounded-full bg-teal-500" />
-                  </div>
-                ) : <Circle className="w-6 h-6 text-slate-300" />}
-              </div>
-              <div className={index > currentIndex ? 'opacity-50' : ''}>
-                <h4 className={`font-bold ${current ? 'text-teal-700' : 'text-slate-800'}`}>{step.label}</h4>
-                <p className="text-sm text-slate-500 mt-1">{step.description}</p>
-                {timestamp && (
-                  <p className="text-xs text-slate-400 mt-1">
-                    {new Date(timestamp).toLocaleString('zh-TW', { hour12: false })}
-                  </p>
-                )}
-              </div>
+    <ol className="space-y-5">
+      {steps.map((step, index) => {
+        const done = index < currentIndex || status === 'completed';
+        const current = index === currentIndex && status !== 'completed';
+        const at = history.find((entry) => entry.status === step.key)?.at;
+        return (
+          <li key={step.key} className="relative flex gap-4">
+            {index < steps.length - 1 && <span className={`absolute left-3 top-7 h-[calc(100%-4px)] w-0.5 ${done ? 'bg-teal-500' : 'bg-slate-200'}`} />}
+            <span className="relative z-10 shrink-0">
+              {done ? <CheckCircle2 className="h-6 w-6 text-teal-500" /> : current ? (
+                <span className="relative flex h-6 w-6 items-center justify-center">
+                  <span className="absolute h-full w-full animate-ping rounded-full bg-teal-400 opacity-60" />
+                  <span className="relative h-3 w-3 rounded-full bg-teal-500" />
+                </span>
+              ) : <Circle className="h-6 w-6 text-slate-300" />}
+            </span>
+            <div className={index > currentIndex ? 'opacity-50' : ''}>
+              <p className={`font-bold ${current ? 'text-teal-700' : 'text-slate-800'}`}>{step.label}</p>
+              <p className="text-sm text-slate-500">{step.description}</p>
+              {at && <p className="mt-0.5 text-xs text-slate-400">{formatTime(at)}</p>}
             </div>
-          );
-        })}
-      </div>
-    </div>
+          </li>
+        );
+      })}
+    </ol>
   );
 };

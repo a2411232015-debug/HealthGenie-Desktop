@@ -25,13 +25,18 @@ jobs:
           node-version: "22"
           cache: 'npm'
 
+      # 使用 npm install（而不是 npm ci），新增或移除套件後也能正常建置
       - name: Install dependencies
-        run: npm ci
+        run: npm install --no-audit --no-fund
 
+      - name: Test
+        run: npm test
+
+      # 注意：這裡只放「可以公開」的 Supabase 網址與 Publishable key。
+      # Gemini 金鑰請放在 Supabase 的 Edge Function Secrets，絕對不要放進網頁建置。
       - name: Build
         run: npm run build
         env:
-          VITE_GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
 
