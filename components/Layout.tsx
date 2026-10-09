@@ -64,7 +64,7 @@ export const Layout: React.FC<{ route: Route; children: React.ReactNode }> = ({ 
     customerNav[1],
     customerNav[3],
     customerNav[4],
-    { ...customerNav[5], label: '我的', pages: ['me', 'merchant', 'admin', 'login'] },
+    { ...customerNav[5], label: '我的', pages: ['me', 'merchant', 'admin', 'login', 'privacy', 'terms'] },
   ];
   const showCartBar = count > 0 && ['stores', 'store', 'recommend'].includes(route.page);
   const hideMobileNav = ['checkout', 'login', 'reset-password'].includes(route.page);
@@ -81,6 +81,7 @@ export const Layout: React.FC<{ route: Route; children: React.ReactNode }> = ({ 
           {businessNav.length > 0 && <p className="px-4 pb-1 pt-5 text-xs font-bold uppercase tracking-wider text-slate-400">店家與管理</p>}
           {businessNav.map((entry) => <NavLink key={entry.path} entry={entry} active={entry.pages.includes(route.page)} />)}
         </nav>
+        <p className="px-4 pb-2 text-[11px] text-slate-400"><a href="#/terms" className="hover:underline">服務條款</a> · <a href="#/privacy" className="hover:underline">隱私權政策</a></p>
         <div className="border-t border-slate-100 py-4">
           {session ? (
             <a href="#/me" className="flex items-center gap-3 rounded-xl px-4 py-2 hover:bg-slate-50">

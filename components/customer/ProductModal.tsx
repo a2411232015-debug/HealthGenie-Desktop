@@ -8,7 +8,7 @@ import { showToast } from '../../utils/notifications';
 import { computeLine, formatCurrency, groupLimits } from '../../utils/pricing';
 import { NutritionGrid } from '../NutritionGrid';
 import { ConfirmDialog, Modal, inputClass, primaryButton } from '../ui';
-import { storeState, STORE_STATE_LABEL } from './storeStatus';
+import { orderingMode, storeState, STORE_STATE_LABEL } from './storeStatus';
 
 type Selections = Record<string, string[]>;
 
@@ -27,6 +27,7 @@ export const ProductModal: React.FC<{ product: Product; merchant: Merchant; onCl
   const [askReplace, setAskReplace] = useState(false);
   const intake = useTodayIntake();
   const state = storeState(merchant);
+  const mode = orderingMode(merchant);
 
   const selectedIds = useMemo(() => Object.values(selections).flat(), [selections]);
   const line = useMemo(() => computeLine(product, selectedIds), [product, selectedIds]);
@@ -74,9 +75,9 @@ export const ProductModal: React.FC<{ product: Product; merchant: Merchant; onCl
               <span className="w-8 text-center font-black" aria-live="polite">{quantity}</span>
               <button type="button" onClick={() => setQuantity((value) => Math.min(50, value + 1))} className="p-3 text-slate-500" aria-label="增加數量"><Plus className="h-4 w-4" /></button>
             </div>
-            <button type="button" onClick={() => add()} disabled={state !== 'open' || !product.available} className={`${primaryButton} flex-1 py-3`}>
+            <button type="button" onClick={() => add()} disabled={mode === 'unavailable' || !product.available} className={`${primaryButton} flex-1 py-3`}>
               <ShoppingBag className="h-4 w-4" />
-              {!product.available ? '已售完' : state !== 'open' ? `${STORE_STATE_LABEL[state]}，暫不接單` : `加入購物車 · ${formatCurrency(line.unitPrice * quantity)}`}
+              {!product.available ? '已售完' : mode === 'unavailable' ? `${STORE_STATE_LABEL[state]}，暫不接單` : `${mode === 'preorder' ? '預約' : '加入購物車'} · ${formatCurrency(line.unitPrice * quantity)}`}
             </button>
           </div>
         )}

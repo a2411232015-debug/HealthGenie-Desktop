@@ -1,6 +1,6 @@
 // 與資料庫 is_open_at() 的測試案例相同
 import { describe, expect, test } from 'vitest';
-import { describeDay, isOpenAt, validateOpeningHours } from '../utils/hours';
+import { describeDay, isOpenAt, slotLabel, upcomingSlots, validateOpeningHours } from '../utils/hours';
 
 const lunchMonday = [{ day: 1, open: '11:00', close: '14:00' }];
 const lateFriday = [{ day: 5, open: '18:00', close: '02:00' }];
@@ -24,4 +24,23 @@ describe('validateOpeningHours', () => {
 test('describeDay', () => {
   expect(describeDay([...lateFriday, { day: 5, open: '11:00', close: '14:00' }], 5)).toBe('11:00–14:00、18:00–隔天 02:00');
   expect(describeDay(lunchMonday, 0)).toBe('公休');
+});
+
+describe('upcomingSlots', () => {
+  const lunch = [0, 1, 2, 3, 4, 5, 6].map((day) => ({ day, open: '11:00', close: '14:00' }));
+  test('營業中：從現在＋備餐時間開始，每 15 分鐘一格', () => {
+    const slots = upcomingSlots(lunch, 20, new Date('2026-10-05T12:03:00+08:00'));
+    expect(slotLabel(slots[0], new Date('2026-10-05T12:03:00+08:00'))).toBe('今天 12:30');
+    expect(slots.filter((slot) => slotLabel(slot, new Date('2026-10-05T12:03:00+08:00')).startsWith('今天')).length).toBe(6);
+  });
+  test('打烊後只能預約明天，且不包含打烊時間', () => {
+    const now = new Date('2026-10-05T21:00:00+08:00');
+    const slots = upcomingSlots(lunch, 20, now);
+    expect(slots.length).toBe(12);
+    expect(slotLabel(slots[0], now)).toBe('明天 11:00');
+    expect(slotLabel(slots.at(-1)!, now)).toBe('明天 13:45');
+  });
+  test('沒有營業時間就沒有可預約時段', () => {
+    expect(upcomingSlots([], 20, new Date())).toEqual([]);
+  });
 });

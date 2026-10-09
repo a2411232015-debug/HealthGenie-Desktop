@@ -12,6 +12,7 @@ import { StoreListPage } from './components/customer/StoreListPage';
 import { StorePage } from './components/customer/StorePage';
 import { HealthPage } from './components/health/HealthPage';
 import { Layout } from './components/Layout';
+import { PrivacyPage, TermsPage } from './components/legal/LegalPage';
 import { MerchantPage } from './components/merchant/MerchantPage';
 import { ProfilePage } from './components/ProfilePage';
 import { ToastViewport } from './components/ToastViewport';
@@ -56,6 +57,10 @@ const Pages: React.FC = () => {
         return <CartPage />;
       case 'login':
         return <LoginPage />;
+      case 'privacy':
+        return <PrivacyPage />;
+      case 'terms':
+        return <TermsPage />;
       case 'reset-password':
         return <ResetPasswordPage />;
       case 'checkout':

@@ -343,6 +343,61 @@ select tests.act_as(null);
 select tests.fails($$select public.consume_ai_quota()$$, 'permission denied', '未登入不能使用 AI');
 
 -- ---------------------------------------------------------------------
+-- 預約取餐
+-- ---------------------------------------------------------------------
+select tests.as_postgres();
+update public.merchants set status = 'approved', accepting_orders = true,
+  -- 只有「明天」10:00–14:00 營業，今天整天休息
+  opening_hours = jsonb_build_array(jsonb_build_object(
+    'day', ((extract(dow from now() at time zone 'Asia/Taipei'))::int + 1) % 7, 'open', '10:00', 'close', '14:00'));
+update public.products set available = true;
+create temp table t_times as select
+  ((((now() at time zone 'Asia/Taipei')::date + 1) + time '12:00') at time zone 'Asia/Taipei') as tomorrow_noon,
+  ((((now() at time zone 'Asia/Taipei')::date + 1) + time '15:00') at time zone 'Asia/Taipei') as tomorrow_late,
+  ((((now() at time zone 'Asia/Taipei')::date + 3) + time '12:00') at time zone 'Asia/Taipei') as too_far;
+grant select on t_times to authenticated;
+
+select tests.act_as('c0000000-0000-0000-0000-000000000003');
+select tests.fails($$select public.place_order('e0000000-0000-0000-0000-00000000000e', '[{"productId":"f0000000-0000-0000-0000-000000000003","quantity":2,"optionIds":[]}]', 'pickup', '小陳', '0912345678', '', '', 'req-asap-closed-01')$$,
+  '可以改用預約', '休息中不能立即下單，但提示可以預約');
+select tests.fails($$select public.place_order('e0000000-0000-0000-0000-00000000000e', '[{"productId":"f0000000-0000-0000-0000-000000000003","quantity":2,"optionIds":[]}]', 'pickup', '小陳', '0912345678', '', '', 'req-sched-past-01', null, now() - interval '1 hour')$$,
+  '預約時間太早', '預約過去的時間會被擋下');
+select tests.fails($$select public.place_order('e0000000-0000-0000-0000-00000000000e', '[{"productId":"f0000000-0000-0000-0000-000000000003","quantity":2,"optionIds":[]}]', 'pickup', '小陳', '0912345678', '', '', 'req-sched-late-01', null, (select tomorrow_late from t_times))$$,
+  '預約的時間店家沒有營業', '預約非營業時間會被擋下');
+select tests.fails($$select public.place_order('e0000000-0000-0000-0000-00000000000e', '[{"productId":"f0000000-0000-0000-0000-000000000003","quantity":2,"optionIds":[]}]', 'pickup', '小陳', '0912345678', '', '', 'req-sched-far-01', null, (select too_far from t_times))$$,
+  '兩天內', '太久以後的預約會被擋下');
+truncate t_result;
+insert into t_result select id, total, order_number from public.place_order('e0000000-0000-0000-0000-00000000000e',
+  '[{"productId":"f0000000-0000-0000-0000-000000000003","quantity":2,"optionIds":[]}]',
+  'pickup', '小陳', '0912345678', '', '', 'req-sched-ok-0001', null, (select tomorrow_noon from t_times));
+select tests.as_postgres();
+select tests.ok((select scheduled_for = (select tomorrow_noon from t_times) and estimated_ready_at = scheduled_for and status = 'pending'
+  from public.orders where id = (select id from t_result)), '店家休息時也能預約明天營業時間取餐');
+select tests.act_as('b0000000-0000-0000-0000-000000000002');
+select tests.ok((select estimated_ready_at = (select tomorrow_noon from t_times)
+  from public.update_order_status((select id from t_result), 'preparing')), '提早接預約單，預計完成時間仍是預約時間');
+
+-- ---------------------------------------------------------------------
+-- 刪除帳號
+-- ---------------------------------------------------------------------
+select tests.fails($$select public.prepare_account_deletion()$$, '請先聯絡平台管理員關閉店家', '店家擁有者不能直接刪除帳號');
+select tests.act_as('c0000000-0000-0000-0000-000000000003');
+select tests.fails($$select public.prepare_account_deletion()$$, '進行中的訂單', '有進行中的訂單時不能刪除帳號');
+select tests.act_as('b0000000-0000-0000-0000-000000000002');
+select public.update_order_status((select id from t_result), 'cancelled', '測試結束');
+select tests.act_as('c0000000-0000-0000-0000-000000000003');
+select tests.ok(public.prepare_account_deletion(), '沒有進行中的訂單時可以準備刪除帳號');
+select tests.ok((select count(*) = 0 from public.food_logs), '飲食紀錄已清除');
+select tests.ok((select count(*) = 0 from public.weight_logs), '體重紀錄已清除');
+select tests.as_postgres();
+select tests.ok((select bool_and(contact_name = '已刪除的會員' and contact_phone = '' and note = '') from public.orders where customer_id = 'c0000000-0000-0000-0000-000000000003'), '過去訂單的姓名電話已清除');
+select tests.ok((select delivery_address = '（已刪除）' from public.orders where fulfillment = 'delivery' and customer_id = 'c0000000-0000-0000-0000-000000000003'), '過去訂單的外送地址已清除');
+delete from auth.users where id = 'c0000000-0000-0000-0000-000000000003';
+select tests.ok((select count(*) = 0 from public.profiles where id = 'c0000000-0000-0000-0000-000000000003'), '刪除登入帳號後 profile 一併刪除');
+select tests.act_as('b0000000-0000-0000-0000-000000000002');
+select tests.ok((select count(*) = 3 and bool_and(customer_id is null) from public.orders), '店家仍保留訂單金額紀錄（已不含個資）');
+
+-- ---------------------------------------------------------------------
 -- Storage 圖片權限
 -- ---------------------------------------------------------------------
 select tests.as_postgres();

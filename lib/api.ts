@@ -160,6 +160,7 @@ export const toOrder = (row: Row): Order => ({
   paymentMethod: 'cash',
   paymentStatus: (str(row.payment_status) || 'unpaid') as Order['paymentStatus'],
   estimatedReadyAt: row.estimated_ready_at ? str(row.estimated_ready_at) : null,
+  scheduledFor: row.scheduled_for ? str(row.scheduled_for) : null,
   statusHistory: arr(row.status_history),
   cancelReason: str(row.cancel_reason),
   createdAt: str(row.created_at),
@@ -272,6 +273,8 @@ export interface PlaceOrderInput {
   note: string;
   clientRequestId: string;
   expectedTotal: number;
+  /** ISO 時間；null 代表盡快 */
+  scheduledFor: string | null;
 }
 
 export const placeOrder = async (input: PlaceOrderInput): Promise<Order> => {
@@ -285,6 +288,7 @@ export const placeOrder = async (input: PlaceOrderInput): Promise<Order> => {
     p_note: input.note,
     p_client_request_id: input.clientRequestId,
     p_expected_total: input.expectedTotal,
+    p_scheduled_for: input.scheduledFor,
   }));
   return toOrder(data as Row);
 };
@@ -391,6 +395,24 @@ export const fetchTodayOrderCount = async (sinceIso: string): Promise<number> =>
   const result = await supabase().from('orders').select('id', { count: 'exact', head: true }).gte('created_at', sinceIso);
   if (result.error) throw new ApiError(result.error.message);
   return result.count || 0;
+};
+
+// ===== 刪除帳號（透過 Supabase Edge Function）=====
+
+export const deleteMyAccount = async (): Promise<void> => {
+  const { data, error } = await supabase().functions.invoke('account', { body: { action: 'delete_account' } });
+  if (error) {
+    let message = '刪除帳號失敗，請稍後再試';
+    try {
+      const context = (error as { context?: Response }).context;
+      const payload = context ? await context.json() : null;
+      if (payload?.error) message = String(payload.error);
+    } catch {
+      // 保留預設訊息
+    }
+    throw new ApiError(message);
+  }
+  if (!data || (data as { ok?: boolean }).ok !== true) throw new ApiError('刪除帳號失敗，請稍後再試');
 };
 
 // ===== AI（透過 Supabase Edge Function，金鑰不會出現在網頁裡）=====

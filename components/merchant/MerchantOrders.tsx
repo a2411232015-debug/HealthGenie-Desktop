@@ -1,9 +1,10 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Bell, BellOff, Bike, ClipboardList, MapPin, MessageSquare, Phone, ShoppingBag } from 'lucide-react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Bell, BellOff, Bike, ClipboardList, MapPin, MessageSquare, Phone, Printer, ShoppingBag } from 'lucide-react';
 import { fetchActiveMerchantOrders, fetchMerchantOrders, subscribeToOrders, updateOrderStatus } from '../../lib/api';
 import { useAutoRefresh, useQuery } from '../../lib/useQuery';
 import { Merchant, Order, OrderStatus } from '../../types';
 import { formatTime, minutesAgo, startOfTaipeiDay } from '../../utils/format';
+import { slotLabel } from '../../utils/hours';
 import {
   errorMessage,
   playNewOrderSound,
@@ -14,6 +15,7 @@ import {
 } from '../../utils/notifications';
 import { formatCurrency } from '../../utils/pricing';
 import { OrderStatusBadge } from '../OrderStatusBadge';
+import { PrintTicket } from './PrintTicket';
 import { EmptyState, ErrorState, PageLoading, ReasonDialog, Spinner, card, primaryButton, secondaryButton } from '../ui';
 
 type Tab = 'pending' | 'preparing' | 'ready' | 'delivering' | 'done';
@@ -51,15 +53,19 @@ const actionsFor = (order: Order): Action[] => {
   }
 };
 
-const OrderTicket: React.FC<{ order: Order; busy: boolean; onAction: (order: Order, action: Action) => void }> = ({ order, busy, onAction }) => (
+const OrderTicket: React.FC<{ order: Order; busy: boolean; onAction: (order: Order, action: Action) => void; onPrint: (order: Order) => void }> = ({ order, busy, onAction, onPrint }) => (
   <article className={`${card} flex flex-col p-4 ${order.status === 'pending' ? 'border-orange-300 ring-2 ring-orange-100' : ''}`}>
     <header className="flex items-start justify-between gap-3">
       <div>
         <p className="text-3xl font-black leading-none text-slate-900">#{order.orderNumber.split('-')[1] || order.orderNumber}</p>
         <p className="mt-1 text-xs text-slate-400">{formatTime(order.createdAt)} 下單 · {minutesAgo(order.createdAt)}</p>
+        {order.scheduledFor && <p className="mt-2 inline-block rounded-lg bg-indigo-600 px-2.5 py-1 text-sm font-black text-white">預約 {slotLabel(new Date(order.scheduledFor))}</p>}
       </div>
       <div className="flex flex-col items-end gap-1">
-        <OrderStatusBadge status={order.status} fulfillment={order.fulfillment} />
+        <div className="flex items-center gap-1">
+          <button type="button" onClick={() => onPrint(order)} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700" aria-label={`列印 #${order.orderNumber} 出單`} title="列印出單"><Printer className="h-4 w-4" /></button>
+          <OrderStatusBadge status={order.status} fulfillment={order.fulfillment} />
+        </div>
         <span className={`flex items-center gap-1 text-xs font-bold ${order.fulfillment === 'delivery' ? 'text-blue-700' : 'text-teal-700'}`}>
           {order.fulfillment === 'delivery' ? <><Bike className="h-3.5 w-3.5" />外送</> : <><ShoppingBag className="h-3.5 w-3.5" />自取</>}
         </span>
@@ -107,6 +113,8 @@ export const MerchantOrders: React.FC<{ merchant: Merchant }> = ({ merchant }) =
   const [tab, setTab] = useState<Tab>('pending');
   const [busyId, setBusyId] = useState('');
   const [reasonFor, setReasonFor] = useState<{ order: Order; action: Action } | null>(null);
+  const [printing, setPrinting] = useState<{ order: Order; job: number } | null>(null);
+  const finishPrinting = useCallback(() => setPrinting(null), []);
   const [alertsOn, setAlertsOn] = useState(() => {
     try { return localStorage.getItem(ALERT_KEY) === 'on'; } catch { return false; }
   });
@@ -232,10 +240,12 @@ export const MerchantOrders: React.FC<{ merchant: Merchant }> = ({ merchant }) =
               order={order}
               busy={busyId === order.id}
               onAction={(target, action) => (action.needsReason ? setReasonFor({ order: target, action }) : void change(target, action.status))}
+              onPrint={(target) => setPrinting({ order: target, job: Date.now() })}
             />
           ))}
         </div>
       )}
+      {printing && <PrintTicket key={printing.job} order={printing.order} onDone={finishPrinting} />}
       {reasonFor && (
         <ReasonDialog
           title={reasonFor.action.label}

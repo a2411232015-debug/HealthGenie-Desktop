@@ -17,7 +17,7 @@ const OrderRow: React.FC<{ order: Order }> = ({ order }) => {
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h3 className="flex items-center gap-2 font-bold text-slate-900"><Store className="h-4 w-4 text-teal-600" />{order.merchantName}</h3>
-          <p className="mt-1 text-xs text-slate-400">#{order.orderNumber} · {formatDateTime(order.createdAt)} · {order.fulfillment === 'pickup' ? '自取' : '外送'}</p>
+          <p className="mt-1 text-xs text-slate-400">#{order.orderNumber} · {formatDateTime(order.createdAt)} · {order.fulfillment === 'pickup' ? '自取' : '外送'}{order.scheduledFor ? ` · 預約 ${formatDateTime(order.scheduledFor)}` : ''}</p>
         </div>
         <OrderStatusBadge status={order.status} fulfillment={order.fulfillment} />
       </div>

@@ -408,7 +408,8 @@ for each row execute function public.set_updated_at();
 create table public.orders (
   id uuid primary key default gen_random_uuid(),
   order_number text not null,
-  customer_id uuid not null references public.profiles(id) on delete restrict,
+  -- 會員刪除帳號後設為 null，訂單金額紀錄保留給店家對帳
+  customer_id uuid references public.profiles(id) on delete set null,
   merchant_id uuid not null references public.merchants(id) on delete restrict,
   client_request_id text not null check (char_length(client_request_id) between 8 and 100),
   status text not null default 'pending' check (status in (
@@ -432,6 +433,8 @@ create table public.orders (
   payment_method text not null default 'cash' check (payment_method in ('cash')),
   payment_status text not null default 'unpaid' check (payment_status in ('unpaid', 'paid', 'refunded')),
   estimated_ready_at timestamptz,
+  -- 預約取餐／送達時間；null 代表盡快
+  scheduled_for timestamptz,
   status_history jsonb not null default '[]'::jsonb,
   cancel_reason text not null default '' check (char_length(cancel_reason) <= 200),
   created_at timestamptz not null default now(),
@@ -586,7 +589,8 @@ create or replace function public.place_order(
   p_delivery_address text,
   p_note text,
   p_client_request_id text,
-  p_expected_total integer default null
+  p_expected_total integer default null,
+  p_scheduled_for timestamptz default null
 )
 returns public.orders
 language plpgsql
@@ -637,8 +641,20 @@ begin
   if not v_merchant.accepting_orders then
     raise exception '店家目前暫停接單';
   end if;
-  if not public.is_open_at(v_merchant.opening_hours, now()) then
-    raise exception '店家目前不在營業時間';
+  if p_scheduled_for is null then
+    if not public.is_open_at(v_merchant.opening_hours, now()) then
+      raise exception '店家目前不在營業時間，可以改用預約';
+    end if;
+  else
+    if p_scheduled_for < now() + make_interval(mins => v_merchant.prep_minutes) - interval '2 minutes' then
+      raise exception '預約時間太早，店家需要約 % 分鐘準備', v_merchant.prep_minutes;
+    end if;
+    if p_scheduled_for > now() + interval '2 days' then
+      raise exception '最多只能預約兩天內的時間';
+    end if;
+    if not public.is_open_at(v_merchant.opening_hours, p_scheduled_for) then
+      raise exception '預約的時間店家沒有營業';
+    end if;
   end if;
 
   if p_fulfillment = 'pickup' then
@@ -719,14 +735,15 @@ begin
       items, item_count, subtotal, delivery_fee, service_fee, discount, total,
       merchant_name, merchant_phone, merchant_address,
       contact_name, contact_phone, delivery_address, note,
-      estimated_ready_at, status_history
+      estimated_ready_at, scheduled_for, status_history
     ) values (
       to_char(v_day, 'YYMMDD') || '-' || lpad(v_number::text, 4, '0'),
       v_uid, p_merchant_id, p_client_request_id, 'pending', p_fulfillment,
       v_lines, v_item_count, v_subtotal, v_delivery_fee, v_merchant.service_fee, v_discount, v_total,
       v_merchant.name, v_merchant.phone, v_merchant.address,
       v_name, v_phone, case when p_fulfillment = 'delivery' then v_address else '' end, v_note,
-      now() + make_interval(mins => v_merchant.prep_minutes),
+      coalesce(p_scheduled_for, now() + make_interval(mins => v_merchant.prep_minutes)),
+      p_scheduled_for,
       jsonb_build_array(jsonb_build_object('status', 'pending', 'at', now()))
     )
     returning * into v_order;
@@ -814,7 +831,7 @@ begin
   update public.orders set
     status = p_status,
     cancel_reason = case when p_status in ('rejected', 'cancelled') then v_reason else cancel_reason end,
-    estimated_ready_at = case when p_status = 'preparing' then now() + make_interval(mins => v_prep) else estimated_ready_at end,
+    estimated_ready_at = case when p_status = 'preparing' then greatest(coalesce(scheduled_for, now()), now() + make_interval(mins => v_prep)) else estimated_ready_at end,
     completed_at = case when p_status = 'completed' then now() else completed_at end,
     payment_status = case when p_status = 'completed' then 'paid' else payment_status end,
     status_history = status_history || jsonb_build_array(jsonb_build_object('status', p_status, 'at', now()))
@@ -822,6 +839,49 @@ begin
   returning * into v_order;
 
   return v_order;
+end;
+$$;
+
+-- ---------------------------------------------------------------------
+-- 5b. 刪除帳號（個資法：會員可以要求刪除個人資料）
+-- ---------------------------------------------------------------------
+-- 由 account Edge Function 以會員本人身分呼叫，清除個人資料後，再由函式刪除登入帳號。
+-- 過去訂單的金額保留給店家對帳，但姓名、電話、地址會被清除。
+create or replace function public.prepare_account_deletion()
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_uid uuid := auth.uid();
+begin
+  if v_uid is null then
+    raise exception '請先登入' using errcode = '28000';
+  end if;
+  if exists (select 1 from public.merchants where owner_id = v_uid) then
+    raise exception '你有經營中的店家，請先聯絡平台管理員關閉店家後再刪除帳號';
+  end if;
+  if exists (
+    select 1 from public.orders
+    where customer_id = v_uid and status in ('pending', 'preparing', 'ready', 'delivering')
+  ) then
+    raise exception '你還有進行中的訂單，請等訂單完成或取消後再刪除帳號';
+  end if;
+
+  update public.orders set
+    contact_name = '已刪除的會員',
+    contact_phone = '',
+    delivery_address = case when delivery_address = '' then '' else '（已刪除）' end,
+    note = ''
+  where customer_id = v_uid;
+  delete from public.food_logs where user_id = v_uid;
+  delete from public.weight_logs where user_id = v_uid;
+  delete from public.ai_usage where user_id = v_uid;
+  update public.profiles
+  set display_name = '', phone = '', default_address = '', health = '{}'::jsonb
+  where id = v_uid;
+  return true;
 end;
 $$;
 
@@ -978,15 +1038,17 @@ create policy weight_logs_owner on public.weight_logs for all to authenticated
 using (user_id = (select auth.uid())) with check (user_id = (select auth.uid()) and (select public.is_registered_user()));
 
 -- 函式權限
-revoke execute on function public.place_order(uuid, jsonb, text, text, text, text, text, text, integer) from public, anon;
+revoke execute on function public.place_order(uuid, jsonb, text, text, text, text, text, text, integer, timestamptz) from public, anon;
 revoke execute on function public.update_order_status(uuid, text, text) from public, anon;
 revoke execute on function public.consume_ai_quota(integer) from public, anon;
+revoke execute on function public.prepare_account_deletion() from public, anon;
 revoke execute on function public.compute_order_item(public.products, text[], integer, text) from public, anon, authenticated;
 revoke execute on function public.handle_new_user() from public, anon, authenticated;
 revoke execute on function public.guard_merchant_changes() from public, anon, authenticated;
-grant execute on function public.place_order(uuid, jsonb, text, text, text, text, text, text, integer) to authenticated;
+grant execute on function public.place_order(uuid, jsonb, text, text, text, text, text, text, integer, timestamptz) to authenticated;
 grant execute on function public.update_order_status(uuid, text, text) to authenticated;
 grant execute on function public.consume_ai_quota(integer) to authenticated;
+grant execute on function public.prepare_account_deletion() to authenticated;
 grant execute on function public.is_admin() to anon, authenticated;
 grant execute on function public.is_registered_user() to anon, authenticated;
 grant execute on function public.is_open_at(jsonb, timestamptz) to anon, authenticated;

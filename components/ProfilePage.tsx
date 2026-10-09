@@ -1,13 +1,17 @@
 import React, { useEffect, useState } from 'react';
-import { ChevronRight, LogOut, ShieldCheck, ShoppingBag, UtensilsCrossed } from 'lucide-react';
-import { saveWeight, updateProfile } from '../lib/api';
+import { ChevronRight, Download, LogOut, ShieldCheck, ShoppingBag, Trash2, UtensilsCrossed } from 'lucide-react';
+import { isIos, isStandalone, useInstallPrompt } from '../lib/pwa';
+import { deleteMyAccount, saveWeight, updateProfile } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { cartCount, useCart } from '../lib/cart';
 import { ActivityLevel, Gender, HealthProfile } from '../types';
 import { bmi, bmiLabel, calculateHealthTargets } from '../utils/health';
 import { isValidPhone, taipeiDate } from '../utils/format';
 import { errorMessage, showToast } from '../utils/notifications';
-import { ErrorState, Field, PageHeader, PageLoading, Spinner, card, inputClass, primaryButton, secondaryButton } from './ui';
+import { ErrorState, Field, Modal, PageHeader, PageLoading, Spinner, card, dangerButton, inputClass, primaryButton, secondaryButton } from './ui';
+import { clearCart } from '../lib/cart';
+import { supabase } from '../lib/supabase';
+import { navigate } from '../lib/router';
 
 interface HealthForm {
   gender: Gender | '';
@@ -34,6 +38,11 @@ export const ProfilePage: React.FC = () => {
   const [health, setHealth] = useState<HealthForm>(toForm({}));
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState<'' | 'account' | 'health'>('');
+  const [deleting, setDeleting] = useState(false);
+  const [confirmText, setConfirmText] = useState('');
+  const [deleteError, setDeleteError] = useState('');
+  const [busyDelete, setBusyDelete] = useState(false);
+  const installer = useInstallPrompt();
 
   useEffect(() => {
     if (!profile) return;
@@ -94,6 +103,21 @@ export const ProfilePage: React.FC = () => {
       showToast(errorMessage(caught), 'error');
     } finally {
       setSaving('');
+    }
+  };
+
+  const removeAccount = async () => {
+    setBusyDelete(true);
+    setDeleteError('');
+    try {
+      await deleteMyAccount();
+      clearCart();
+      navigate('/stores', { replace: true });
+      await supabase().auth.signOut({ scope: 'local' }).catch(() => undefined);
+      showToast('帳號與個人資料已刪除，謝謝你使用 HealthGenie', 'info');
+    } catch (caught) {
+      setDeleteError(errorMessage(caught));
+      setBusyDelete(false);
     }
   };
 
@@ -181,7 +205,47 @@ export const ProfilePage: React.FC = () => {
         <button type="submit" disabled={saving === 'health'} className={primaryButton}>{saving === 'health' && <Spinner className="h-4 w-4" />}儲存健康資料</button>
       </form>
 
-      <button onClick={() => void signOut()} className={`${secondaryButton} w-full text-red-600`}><LogOut className="h-4 w-4" />登出</button>
+      {!isStandalone() && (installer.canInstall || isIos()) && window.location.protocol.startsWith('http') && (
+        <section className={`${card} flex flex-col gap-3 p-5 sm:flex-row sm:items-center`}>
+          <Download className="h-6 w-6 shrink-0 text-teal-600" />
+          <div className="flex-1">
+            <p className="font-bold text-slate-900">把 HealthGenie 加到主畫面</p>
+            <p className="text-sm text-slate-500">{installer.canInstall ? '像 App 一樣從桌面直接打開，點餐更快。' : '在 Safari 點下方「分享」按鈕，再選「加入主畫面」。'}</p>
+          </div>
+          {installer.canInstall && <button onClick={() => void installer.install()} className={primaryButton}>安裝</button>}
+        </section>
+      )}
+
+      <button onClick={() => void signOut()} className={`${secondaryButton} w-full`}><LogOut className="h-4 w-4" />登出</button>
+
+      <section className="rounded-2xl border border-red-100 bg-red-50/40 p-5">
+        <h2 className="font-black text-red-800">刪除帳號</h2>
+        <p className="mt-1 text-sm text-red-900/80">刪除後，你的健康資料、飲食與體重紀錄會立即刪除，過去訂單上的姓名、電話與地址也會清除，無法復原。</p>
+        <button onClick={() => { setDeleting(true); setConfirmText(''); setDeleteError(''); }} className={`${secondaryButton} mt-3 border-red-200 text-red-700`}><Trash2 className="h-4 w-4" />刪除我的帳號</button>
+      </section>
+      <p className="text-center text-xs text-slate-400"><a href="#/privacy" className="hover:underline">隱私權政策</a> · <a href="#/terms" className="hover:underline">服務條款</a></p>
+
+      {deleting && (
+        <Modal
+          title="確定要刪除帳號？"
+          onClose={() => !busyDelete && setDeleting(false)}
+          footer={(
+            <div className="flex gap-3">
+              <button onClick={() => setDeleting(false)} disabled={busyDelete} className={`${secondaryButton} flex-1`}>取消</button>
+              <button onClick={removeAccount} disabled={busyDelete || confirmText.trim() !== '刪除'} className={`${dangerButton} flex-1`}>{busyDelete && <Spinner className="h-4 w-4" />}永久刪除</button>
+            </div>
+          )}
+        >
+          <ul className="list-disc space-y-1 pl-5 text-sm text-slate-600">
+            <li>健康資料、飲食紀錄、體重紀錄會全部刪除</li>
+            <li>過去的訂單只保留金額與品項給店家對帳，不含你的姓名與聯絡方式</li>
+            <li>有進行中的訂單、或你經營店家時，需要先處理完才能刪除</li>
+          </ul>
+          <label htmlFor="confirm-delete" className="mt-4 block text-sm font-bold text-slate-700">請輸入「刪除」兩個字確認</label>
+          <input id="confirm-delete" value={confirmText} onChange={(event) => setConfirmText(event.target.value)} className={`${inputClass} mt-2`} autoComplete="off" />
+          {deleteError && <p className="mt-3 rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">{deleteError}</p>}
+        </Modal>
+      )}
     </div>
   );
 };

@@ -99,8 +99,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [userId]);
 
   const signOut = useCallback(async () => {
+    // 先離開需要登入的頁面，避免登出瞬間被導到登入頁
+    navigate('/stores', { replace: true });
     await supabase().auth.signOut();
-    navigate('/stores');
   }, []);
 
   const value = useMemo<AuthState>(() => ({

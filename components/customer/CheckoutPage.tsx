@@ -7,6 +7,7 @@ import { newId } from '../../lib/id';
 import { navigate } from '../../lib/router';
 import { Fulfillment } from '../../types';
 import { isValidPhone } from '../../utils/format';
+import { slotLabel, upcomingSlots } from '../../utils/hours';
 import { errorMessage, showToast } from '../../utils/notifications';
 import { computeTotals, formatCurrency } from '../../utils/pricing';
 import { ErrorState, Field, PageHeader, PageLoading, Spinner, card, inputClass, primaryButton } from '../ui';
@@ -25,6 +26,9 @@ export const CheckoutPage: React.FC = () => {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
+  const [timing, setTiming] = useState<'asap' | 'scheduled'>('asap');
+  const [slot, setSlot] = useState('');
+  const [now, setNow] = useState(() => new Date());
   const requestId = useRef(newId());
   const prefilled = useRef(false);
 
@@ -46,6 +50,17 @@ export const CheckoutPage: React.FC = () => {
     if (!loading && cart.items.length === 0 && !submitting) navigate('/cart', { replace: true });
   }, [loading, cart.items.length, submitting]);
 
+  // 每分鐘更新一次可預約的時段
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(new Date()), 60000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  const slots = useMemo(
+    () => (merchant ? upcomingSlots(merchant.openingHours, merchant.prepMinutes, now) : []),
+    [merchant, now],
+  );
+
   const totals = useMemo(
     () => computeTotals(merchant || { deliveryFee: 0, serviceFee: 0, discount: 0 }, cart.items, fulfillment),
     [merchant, cart.items, fulfillment],
@@ -57,12 +72,21 @@ export const CheckoutPage: React.FC = () => {
 
   const state = storeState(merchant);
   const belowMinimum = merchant.minOrderAmount > totals.subtotal;
+  const openNow = state === 'open';
+  const canOrder = state !== 'paused' && (openNow || slots.length > 0);
+  const effectiveTiming = openNow ? timing : 'scheduled';
+  const chosenSlot = slots.some((candidate) => candidate.toISOString() === slot) ? slot : (slots[0]?.toISOString() || '');
+  const slotGroups = slots.reduce<Record<string, Date[]>>((groups, candidate) => {
+    const day = slotLabel(candidate, now).split(' ')[0];
+    return { ...groups, [day]: [...(groups[day] || []), candidate] };
+  }, {});
 
   const validate = (): boolean => {
     const next: Record<string, string> = {};
     if (!contactName.trim()) next.contactName = '請填寫訂購人姓名';
     if (!isValidPhone(contactPhone)) next.contactPhone = '請填寫正確的電話，例如 0912345678';
     if (fulfillment === 'delivery' && address.trim().length < 5) next.address = '請填寫完整的外送地址';
+    if (effectiveTiming === 'scheduled' && !chosenSlot) next.slot = '請選擇預約時間';
     setErrors(next);
     return Object.keys(next).length === 0;
   };
@@ -87,6 +111,7 @@ export const CheckoutPage: React.FC = () => {
         note: note.trim(),
         clientRequestId: requestId.current,
         expectedTotal: totals.total,
+        scheduledFor: effectiveTiming === 'scheduled' ? chosenSlot : null,
       });
       if (remember && userId && profile) {
         const patch = {
@@ -97,7 +122,7 @@ export const CheckoutPage: React.FC = () => {
         updateProfile(userId, patch).then(setProfile).catch(() => undefined);
       }
       clearCart();
-      showToast('訂單已送出，等待店家接單');
+      showToast(effectiveTiming === 'scheduled' ? `已預約 ${slotLabel(new Date(chosenSlot))}，等待店家確認` : '訂單已送出，等待店家接單');
       navigate(`/order/${order.id}`, { replace: true });
     } catch (caught) {
       setSubmitting(false);
@@ -133,9 +158,30 @@ export const CheckoutPage: React.FC = () => {
                 </button>
               )}
             </div>
-            <p className="mt-3 flex items-center gap-2 text-sm text-slate-500">
-              <Clock className="h-4 w-4" /> 店家接單後約 {merchant.prepMinutes} 分鐘完成{fulfillment === 'delivery' ? '，再加上配送時間' : ''}
-            </p>
+            <div className="mt-5">
+              <p className="flex items-center gap-2 text-sm font-bold text-slate-700"><Clock className="h-4 w-4" />{fulfillment === 'pickup' ? '取餐時間' : '送達時間'}</p>
+              <div className="mt-2 grid grid-cols-2 gap-3">
+                <button type="button" disabled={!openNow} onClick={() => setTiming('asap')} className={`rounded-xl border-2 px-4 py-3 text-left text-sm disabled:cursor-not-allowed disabled:opacity-50 ${effectiveTiming === 'asap' ? 'border-teal-500 bg-teal-50' : 'border-slate-100'}`}>
+                  <span className="block font-bold">盡快</span>
+                  <span className="text-xs text-slate-500">{openNow ? `接單後約 ${merchant.prepMinutes} 分鐘${fulfillment === 'delivery' ? '＋配送' : ''}` : '店家休息中'}</span>
+                </button>
+                <button type="button" disabled={slots.length === 0} onClick={() => setTiming('scheduled')} className={`rounded-xl border-2 px-4 py-3 text-left text-sm disabled:cursor-not-allowed disabled:opacity-50 ${effectiveTiming === 'scheduled' ? 'border-teal-500 bg-teal-50' : 'border-slate-100'}`}>
+                  <span className="block font-bold">預約時間</span>
+                  <span className="text-xs text-slate-500">{slots.length > 0 ? `最早 ${slotLabel(slots[0], now)}` : '近兩天沒有營業時段'}</span>
+                </button>
+              </div>
+              {effectiveTiming === 'scheduled' && slots.length > 0 && (
+                <select aria-label="預約時間" value={chosenSlot} onChange={(event) => setSlot(event.target.value)} className={`${inputClass} mt-3`}>
+                  {Object.entries(slotGroups).map(([day, daySlots]) => (
+                    <optgroup key={day} label={day}>
+                      {daySlots.map((candidate) => <option key={candidate.toISOString()} value={candidate.toISOString()}>{slotLabel(candidate, now)}</option>)}
+                    </optgroup>
+                  ))}
+                </select>
+              )}
+              {!openNow && slots.length > 0 && <p className="mt-2 text-xs text-indigo-700">店家現在休息中，可以預約營業時間{fulfillment === 'pickup' ? '取餐' : '送達'}。</p>}
+              {errors.slot && <p className="mt-1 text-xs font-medium text-red-600">{errors.slot}</p>}
+            </div>
             {fulfillment === 'pickup' && <p className="mt-1 flex items-center gap-2 text-sm text-slate-500"><MapPin className="h-4 w-4" />取餐地點：{merchant.address}</p>}
           </section>
 
@@ -195,13 +241,14 @@ export const CheckoutPage: React.FC = () => {
               <div className="flex justify-between border-t border-slate-100 pt-2 text-lg font-black text-slate-900"><dt>應付金額</dt><dd>{formatCurrency(totals.total)}</dd></div>
             </dl>
             {unavailable.size > 0 && <p className="mt-3 rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700">有餐點已售完，請回購物車移除。</p>}
-            {state !== 'open' && <p className="mt-3 rounded-xl bg-slate-100 px-3 py-2 text-sm text-slate-700">店家目前{STORE_STATE_LABEL[state]}，暫時無法下單。</p>}
+            {!canOrder && <p className="mt-3 rounded-xl bg-slate-100 px-3 py-2 text-sm text-slate-700">店家目前{STORE_STATE_LABEL[state]}，暫時無法下單。</p>}
+            {canOrder && effectiveTiming === 'scheduled' && chosenSlot && <p className="mt-3 rounded-xl bg-indigo-50 px-3 py-2 text-sm font-bold text-indigo-800">預約 {slotLabel(new Date(chosenSlot), now)}{fulfillment === 'pickup' ? '取餐' : '送達'}</p>}
             {belowMinimum && <p className="mt-3 rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-800">未達最低消費 {formatCurrency(merchant.minOrderAmount)}</p>}
             {submitError && <p className="mt-3 rounded-xl bg-red-50 px-3 py-2 text-sm font-medium text-red-700" role="alert">{submitError}</p>}
-            <button onClick={submit} disabled={submitting || unavailable.size > 0 || state !== 'open' || belowMinimum} className={`${primaryButton} mt-4 w-full py-3.5 text-base`}>
+            <button onClick={submit} disabled={submitting || unavailable.size > 0 || !canOrder || belowMinimum} className={`${primaryButton} mt-4 w-full py-3.5 text-base`}>
               {submitting ? <><Spinner className="h-4 w-4" />送出中…</> : `送出訂單 · ${formatCurrency(totals.total)}`}
             </button>
-            <p className="mt-2 text-center text-xs text-slate-400">實際金額以店家確認為準，付款於{fulfillment === 'pickup' ? '取餐' : '送達'}時進行。</p>
+            <p className="mt-2 text-center text-xs text-slate-400">付款於{fulfillment === 'pickup' ? '取餐' : '送達'}時進行。送出訂單即表示同意<a href="#/terms" className="underline">服務條款</a>，你的姓名、電話{fulfillment === 'delivery' ? '、地址' : ''}會提供給店家。</p>
           </section>
         </aside>
       </div>

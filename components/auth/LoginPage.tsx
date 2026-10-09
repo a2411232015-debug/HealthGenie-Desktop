@@ -33,6 +33,7 @@ export const LoginPage: React.FC = () => {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [sentTo, setSentTo] = useState('');
+  const [agreed, setAgreed] = useState(false);
   const canUseGoogle = window.location.protocol.startsWith('http');
 
   useEffect(() => {
@@ -53,6 +54,10 @@ export const LoginPage: React.FC = () => {
     }
     if (mode === 'signup' && !displayName.trim()) {
       setError('請輸入暱稱');
+      return;
+    }
+    if (mode === 'signup' && !agreed) {
+      setError('請先閱讀並同意服務條款與隱私權政策');
       return;
     }
     setBusy(true);
@@ -141,6 +146,12 @@ export const LoginPage: React.FC = () => {
               <input id="auth-password" type="password" value={password} onChange={(event) => setPassword(event.target.value)} className={inputClass} autoComplete={mode === 'signup' ? 'new-password' : 'current-password'} />
             </Field>
           )}
+          {mode === 'signup' && (
+            <label className="flex items-start gap-2 text-sm text-slate-600">
+              <input type="checkbox" checked={agreed} onChange={(event) => setAgreed(event.target.checked)} className="mt-0.5 accent-teal-600" />
+              <span>我已閱讀並同意 <a href="#/terms" target="_blank" rel="noreferrer" className="font-bold text-teal-700 hover:underline">服務條款</a> 與 <a href="#/privacy" target="_blank" rel="noreferrer" className="font-bold text-teal-700 hover:underline">隱私權政策</a></span>
+            </label>
+          )}
           {error && <p className="rounded-xl bg-red-50 px-3 py-2 text-sm font-medium text-red-700" role="alert">{error}</p>}
           <button type="submit" disabled={busy} className={`${primaryButton} w-full py-3`}>
             {busy && <Spinner className="h-4 w-4" />}
@@ -165,7 +176,7 @@ export const LoginPage: React.FC = () => {
           </>
         )}
       </div>
-      <p className="mt-4 text-center text-xs text-slate-400">登入即表示你同意本平台的服務條款與隱私權政策。</p>
+      <p className="mt-4 text-center text-xs text-slate-400">使用本平台即表示你同意 <a href="#/terms" className="hover:underline">服務條款</a> 與 <a href="#/privacy" className="hover:underline">隱私權政策</a>。</p>
     </div>
   );
 };

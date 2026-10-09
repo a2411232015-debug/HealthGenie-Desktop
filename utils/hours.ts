@@ -67,3 +67,30 @@ export const defaultOpeningHours = (): OpeningSlot[] =>
     { day, open: '11:00', close: '14:00' },
     { day, open: '17:00', close: '20:30' },
   ]);
+
+const taipeiDayKey = (date: Date): string =>
+  new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit' }).format(date);
+
+/**
+ * 可以預約的時間（每 15 分鐘一格）：從「現在＋備餐時間」開始，到明天結束為止，只列出營業中的時段。
+ * 與資料庫 place_order() 的預約規則一致（需晚於備餐時間、兩天內、在營業時間內）。
+ */
+export const upcomingSlots = (slots: OpeningSlot[], prepMinutes: number, now: Date = new Date(), stepMinutes = 15): Date[] => {
+  const step = stepMinutes * 60000;
+  const tomorrow = taipeiDayKey(new Date(now.getTime() + 86400000));
+  const endOfTomorrow = new Date(`${tomorrow}T23:59:59+08:00`).getTime();
+  const limit = Math.min(endOfTomorrow, now.getTime() + 47 * 3600000);
+  const result: Date[] = [];
+  for (let time = Math.ceil((now.getTime() + prepMinutes * 60000) / step) * step; time <= limit; time += step) {
+    const candidate = new Date(time);
+    if (isOpenAt(slots, candidate)) result.push(candidate);
+  }
+  return result;
+};
+
+/** 例如「今天 12:30」、「明天 09:00」 */
+export const slotLabel = (date: Date, now: Date = new Date()): string => {
+  const day = taipeiDayKey(date) === taipeiDayKey(now) ? '今天' : taipeiDayKey(date) === taipeiDayKey(new Date(now.getTime() + 86400000)) ? '明天' : taipeiDayKey(date).slice(5).replace('-', '/');
+  const time = date.toLocaleTimeString('zh-TW', { timeZone: 'Asia/Taipei', hour: '2-digit', minute: '2-digit', hour12: false });
+  return `${day} ${time}`;
+};

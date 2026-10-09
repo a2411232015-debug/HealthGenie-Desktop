@@ -9,7 +9,7 @@ import { formatNumber } from '../../utils/format';
 import { formatCurrency } from '../../utils/pricing';
 import { Badge, EmptyState, ErrorState, PageLoading } from '../ui';
 import { ProductModal } from './ProductModal';
-import { STORE_STATE_LABEL, storeState } from './storeStatus';
+import { orderingMode, STORE_STATE_LABEL, storeState } from './storeStatus';
 
 export const ProductCard: React.FC<{ product: Product; subtitle?: string; extra?: React.ReactNode; onOpen: () => void }> = ({ product, subtitle, extra, onOpen }) => (
   <button type="button" onClick={onOpen} className={`flex w-full gap-4 rounded-2xl border border-slate-100 bg-white p-3 text-left shadow-sm transition ${product.available ? 'hover:border-teal-200 hover:shadow-md' : 'opacity-60'}`}>
@@ -71,7 +71,7 @@ const MerchantHeader: React.FC<{ merchant: Merchant }> = ({ merchant }) => {
         </div>
         {state !== 'open' && (
           <p className="mt-4 rounded-xl bg-slate-100 px-4 py-3 text-sm text-slate-600">
-            {state === 'paused' ? '店家目前暫停接單，可以先看看菜單。' : '現在不是營業時間，營業時間內才能下單。'}
+            {state === 'paused' ? '店家目前暫停接單，可以先看看菜單。' : orderingMode(merchant) === 'preorder' ? '現在休息中，可以先預約今天或明天的營業時間取餐。' : '現在不是營業時間，營業時間內才能下單。'}
           </p>
         )}
       </div>

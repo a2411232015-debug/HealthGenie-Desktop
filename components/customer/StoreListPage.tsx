@@ -8,7 +8,7 @@ import { distanceKm, formatDistance, getSavedLocation, requestLocation, Coordina
 import { showToast } from '../../utils/notifications';
 import { formatCurrency } from '../../utils/pricing';
 import { Badge, EmptyState, ErrorState, inputClass, PageHeader, PageLoading, secondaryButton } from '../ui';
-import { STORE_STATE_LABEL, storeState } from './storeStatus';
+import { orderingMode, STORE_STATE_LABEL, storeState } from './storeStatus';
 
 const StoreCard: React.FC<{ merchant: Merchant; distance: number | null }> = ({ merchant, distance }) => {
   const state = storeState(merchant);
@@ -19,7 +19,7 @@ const StoreCard: React.FC<{ merchant: Merchant; distance: number | null }> = ({ 
           ? <img src={merchant.coverImageUrl} alt="" className={`h-full w-full object-cover ${state === 'open' ? '' : 'grayscale'}`} loading="lazy" />
           : <div className="flex h-full items-center justify-center text-teal-300"><Store className="h-14 w-14" /></div>}
         <span className={`absolute left-3 top-3 rounded-full px-3 py-1 text-xs font-bold ${state === 'open' ? 'bg-emerald-500 text-white' : 'bg-slate-800/80 text-white'}`}>
-          {STORE_STATE_LABEL[state]}
+          {STORE_STATE_LABEL[state]}{state === 'closed' && orderingMode(merchant) === 'preorder' ? '・可預約' : ''}
         </span>
       </div>
       <div className="flex flex-1 flex-col p-4">

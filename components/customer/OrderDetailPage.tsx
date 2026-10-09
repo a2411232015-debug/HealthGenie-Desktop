@@ -111,7 +111,9 @@ export const OrderDetailPage: React.FC<{ orderId: string }> = ({ orderId }) => {
       <section className={`${card} p-5`}>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <OrderStatusBadge status={order.status} fulfillment={order.fulfillment} />
-          {active && order.estimatedReadyAt && (
+          {order.scheduledFor ? (
+            <p className="flex items-center gap-1.5 rounded-full bg-indigo-50 px-3 py-1 text-sm font-bold text-indigo-800"><Clock className="h-4 w-4" />預約 {formatDateTime(order.scheduledFor)} {order.fulfillment === 'pickup' ? '取餐' : '送達'}</p>
+          ) : active && order.estimatedReadyAt && (
             <p className="flex items-center gap-1.5 text-sm font-bold text-teal-700"><Clock className="h-4 w-4" />預計 {formatTime(order.estimatedReadyAt)} 完成</p>
           )}
         </div>

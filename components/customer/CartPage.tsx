@@ -7,7 +7,7 @@ import { navigate } from '../../lib/router';
 import { formatNumber } from '../../utils/format';
 import { cartNutrition, computeTotals, formatCurrency } from '../../utils/pricing';
 import { ConfirmDialog, EmptyState, ErrorState, PageHeader, PageLoading, card, primaryButton, secondaryButton } from '../ui';
-import { storeState, STORE_STATE_LABEL } from './storeStatus';
+import { orderingMode, storeState, STORE_STATE_LABEL } from './storeStatus';
 import { useCartStore } from './useCartStore';
 
 export const CartPage: React.FC = () => {
@@ -30,7 +30,8 @@ export const CartPage: React.FC = () => {
   const totals = computeTotals(merchant || { deliveryFee: 0, serviceFee: 0, discount: 0 }, cart.items, 'pickup');
   const nutrition = cartNutrition(cart.items);
   const state = merchant ? storeState(merchant) : 'closed';
-  const blocked = !merchant || unavailable.size > 0 || state !== 'open';
+  const mode = merchant ? orderingMode(merchant) : 'unavailable';
+  const blocked = !merchant || unavailable.size > 0 || mode === 'unavailable';
   const remaining = intake.targets ? intake.targets.dailyCalories - intake.consumedCalories : null;
 
   const goCheckout = () => navigate(session ? '/checkout' : loginPath('/checkout'));
@@ -41,7 +42,8 @@ export const CartPage: React.FC = () => {
 
       {priceChanged && <p className="mb-4 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-800">店家剛更新了價格，購物車已改用最新價格。</p>}
       {!merchant && <p className="mb-4 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">這間店家已經下架，請清空購物車後重新點餐。</p>}
-      {merchant && state !== 'open' && <p className="mb-4 rounded-xl bg-slate-100 px-4 py-3 text-sm text-slate-700">店家目前{STORE_STATE_LABEL[state]}，營業時間內才能結帳。</p>}
+      {merchant && mode === 'unavailable' && <p className="mb-4 rounded-xl bg-slate-100 px-4 py-3 text-sm text-slate-700">店家目前{STORE_STATE_LABEL[state]}，暫時無法下單。</p>}
+      {merchant && mode === 'preorder' && <p className="mb-4 rounded-xl bg-indigo-50 px-4 py-3 text-sm text-indigo-800">店家現在休息中，結帳時可以預約營業時間取餐。</p>}
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <section className="space-y-3 lg:col-span-2">

@@ -211,6 +211,8 @@ export interface Order {
   paymentMethod: 'cash';
   paymentStatus: 'unpaid' | 'paid' | 'refunded';
   estimatedReadyAt: string | null;
+  /** 預約時間；null 代表盡快 */
+  scheduledFor: string | null;
   statusHistory: StatusHistoryEntry[];
   cancelReason: string;
   createdAt: string;

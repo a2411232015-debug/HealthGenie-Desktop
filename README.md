@@ -9,13 +9,17 @@
 - 每道餐點都有營養標示，選規格（例如飯量減半）時熱量與價格即時更新
 - 依「今天還能吃多少熱量」、預算、高蛋白、過敏原推薦餐點
 - 購物車、自取或外送、現金付款（取餐或送達時付款）
+- 預約取餐／送達時間（今天或明天的營業時段），店家休息時也能先預約
 - 訂單進度自動更新；店家接單前可自行取消；「再點一次」
 - 健康紀錄：每日熱量與三大營養素目標、飲食日誌（手動、AI 拍照估算、訂單一鍵記錄）、體重趨勢
+- 可以加到手機主畫面，像 App 一樣開啟
+- 隱私權政策、服務條款，並可自行刪除帳號（健康資料刪除、過去訂單去識別化）
 
 **店家**
 - 線上申請開店，審核期間就能先建立菜單
 - 接單看板：新訂單提示音與桌面通知、接單 → 製作 → 完成 → 收款
 - 拒單、取消都要填原因，顧客看得到
+- 列印廚房出單（適用 58／80mm 感熱紙印表機或一般印表機）
 - 菜單管理：照片上傳、分類、規格與加價、過敏原、AI 幫忙估算營養
 - 營業時間（可設定多個時段、跨夜）、暫停接單開關、運費、服務費、折扣、最低消費
 - 營運數據：營收、客單價、熱賣餐點、尖峰時段
@@ -44,7 +48,8 @@ Supabase
   ├─ 登入（Email 密碼、Google）
   ├─ Storage（餐點照片）
   ├─ Realtime（訂單即時更新）
-  └─ Edge Function「ai」→ Google Gemini
+  ├─ Edge Function「ai」→ Google Gemini
+  └─ Edge Function「account」→ 刪除帳號（需要伺服器端管理權限）
 ```
 
 ## 第一次設定（約 20 分鐘）
@@ -95,7 +100,10 @@ npx supabase login
 npx supabase link --project-ref 你的專案ID
 npx supabase secrets set GEMINI_API_KEY=你的金鑰
 npx supabase functions deploy ai --no-verify-jwt
+npx supabase functions deploy account --no-verify-jwt
 ```
+
+`account` 函式負責「刪除帳號」，沒有部署的話，會員按刪除帳號會失敗。
 
 `--no-verify-jwt` 是安全的：函式本身會透過資料庫確認使用者已登入，並限制每人每天 30 次。可以用 `AI_DAILY_LIMIT` 調整次數、用 `GEMINI_MODEL` 換模型（預設 `gemini-2.5-flash`）。
 
@@ -113,9 +121,9 @@ npx supabase functions deploy ai --no-verify-jwt
 
 ### 7. 部署到 GitHub Pages
 
-1. GitHub 專案 → Settings → Secrets and variables → Actions，新增：
-   - `VITE_SUPABASE_URL`
-   - `VITE_SUPABASE_PUBLISHABLE_KEY`
+1. GitHub 專案 → Settings → Secrets and variables → Actions：
+   - **Secrets** 新增 `VITE_SUPABASE_URL`、`VITE_SUPABASE_PUBLISHABLE_KEY`
+   - **Variables**（選填）新增 `VITE_OPERATOR_NAME`（營運者名稱）、`VITE_CONTACT_EMAIL`（客服信箱），會顯示在隱私權政策與服務條款
 2. Settings → Pages → Source 選 **GitHub Actions**
 3. Actions → **Build and Deploy** → Run workflow
 
@@ -129,11 +137,11 @@ npx supabase functions deploy ai --no-verify-jwt
 ## 測試
 
 ```bash
-npm test          # 價格、營業時間、AI 函式的單元測試
-npm run build     # 型別檢查與正式建置
+npm test          # 價格、營業時間、預約時段、伺服器函式的單元測試（38 項）
+npm run build     # 型別檢查、正式建置，並檢查輸出（樣式、圖示、沒有夾帶金鑰）
 ```
 
-資料庫測試（權限、下單、訂單流程，共 98 項）在 GitHub Actions 的 **Check** 流程會自動執行，也可以在任何 PostgreSQL 16 上手動跑：
+資料庫測試（權限、下單、預約、刪除帳號等，共 113 項）在 GitHub Actions 的 **Check** 流程會自動執行，也可以在任何 PostgreSQL 16 上手動跑：
 
 ```bash
 psql -f supabase/tests/supabase_stub.sql
@@ -141,6 +149,12 @@ psql -f supabase/migrations/202609080001_healthgenie_schema.sql
 psql -f supabase/migrations/202610090001_ordering_platform.sql
 psql -f supabase/tests/platform_test.sql
 ```
+
+## 上線前請確認
+
+- 隱私權政策與服務條款是通用範本，請依你的實際營運方式調整，必要時請法律專業人士確認
+- 設定 `VITE_CONTACT_EMAIL`，讓會員知道怎麼聯絡你
+- 店家需自行辦理食品業者登錄與開立發票
 
 ## Windows 桌面版
 
@@ -150,8 +164,5 @@ psql -f supabase/tests/platform_test.sql
 
 - 線上付款（綠界 ECPay、藍新、LINE Pay）與電子發票
 - 地址自動轉座標、外送範圍限制
-- 預約時段點餐、優惠券、評價
+- 優惠券、評價
 - 新訂單 LINE／Telegram 推播
-- 列印廚房出單
-- 隱私權政策、服務條款頁面，以及會員刪除帳號功能
-- Tailwind 改為正式建置（目前透過 CDN 載入，需要網路連線）
