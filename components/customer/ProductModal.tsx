@@ -82,7 +82,7 @@ export const ProductModal: React.FC<{ product: Product; merchant: Merchant; onCl
           </div>
         )}
       >
-        {product.imageUrl && <img src={product.imageUrl} alt={product.name} className="-mx-5 -mt-4 mb-4 h-52 w-[calc(100%+2.5rem)] max-w-none object-cover" />}
+        {product.imageUrl && <img src={product.imageUrl} alt={product.name} className="-mx-5 -mt-4 mb-4 h-52 w-[calc(100%+2.5rem)] max-w-none object-cover" onError={(event) => { event.currentTarget.style.display = 'none'; }} />}
         <div className="flex items-start justify-between gap-4">
           <div>
             <p className="text-sm text-slate-500">{merchant.name}</p>

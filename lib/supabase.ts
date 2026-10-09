@@ -28,3 +28,20 @@ export const supabase = (): SupabaseClient => {
 
 /** 登入／重設密碼信件連結要導回的網址（目前網頁，不含 # 與 ?） */
 export const appBaseUrl = (): string => `${window.location.origin}${window.location.pathname}`;
+
+/**
+ * 讀取平台目前開啟了哪些第三方登入（例如 Google）。
+ * 沒開的登入方式不顯示按鈕，避免按下去跳到錯誤頁。讀取失敗時當作沒開。
+ */
+export const fetchEnabledProviders = async (): Promise<Record<string, boolean>> => {
+  if (!isSupabaseConfigured) return {};
+  try {
+    const response = await fetch(`${supabaseUrl}/auth/v1/settings`, { headers: { apikey: supabaseKey } });
+    if (!response.ok) return {};
+    const data: unknown = await response.json();
+    const external = (data as { external?: unknown } | null)?.external;
+    return external && typeof external === 'object' ? (external as Record<string, boolean>) : {};
+  } catch {
+    return {};
+  }
+};
