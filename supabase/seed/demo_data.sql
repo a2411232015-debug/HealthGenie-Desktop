@@ -15,6 +15,9 @@
 --   - 重複執行不會產生重複的店家
 --
 -- 正式上線前，用 supabase/seed/remove_demo_data.sql 移除 7 間示範店家。
+--
+-- 餐點照片來自 Unsplash（Unsplash License：可免費使用、包含商業用途，不需標示出處）。
+-- 建議正式營業時換成店家自己拍的照片，顧客看到的會更準確。
 -- =====================================================================
 
 do $seed$
@@ -87,32 +90,32 @@ declare
       "name": "我的健康餐盒",
       "description": "每天現做的低油健康餐盒，熱量與營養標示清楚。（示範菜單，可以在店家後台自由修改）",
       "phone": "02-0000-0000", "address": "台北市信義區（請在店家設定改成你的地址）", "lat": 25.033, "lng": 121.5654,
-      "cover": "https://images.unsplash.com/photo-1546793665-c74683f339c1?auto=format&fit=crop&w=1200&q=80",
+      "cover": "https://images.unsplash.com/photo-1762631383520-df106b252f6a?auto=format&fit=crop&w=1200&q=80",
       "open": "07:00", "close": "02:00", "closedDays": [],
       "pickup": true, "delivery": true, "deliveryFee": 30, "serviceFee": 0, "discount": 0, "minOrder": 0, "prep": 15,
       "products": [
-        {"name":"香草雞胸彩蔬餐盒","category":"餐盒","price":170,"options":"bento","image":"https://images.unsplash.com/photo-1546793665-c74683f339c1?auto=format&fit=crop&w=800&q=80",
+        {"name":"香草雞胸彩蔬餐盒","image":"https://images.unsplash.com/photo-1762631383520-df106b252f6a?auto=format&fit=crop&w=800&q=80","category":"餐盒","price":170,"options":"bento",
          "description":"香草醃製雞胸、五色時蔬、白飯。店長推薦，高蛋白低脂。",
          "nutrition":{"calories":430,"protein":40,"fat":9,"carbs":42,"fiber":7,"sodium":420,"sugar":4},"allergens":[]},
-        {"name":"椒麻雞腿排餐盒","category":"餐盒","price":180,"options":"bento",
+        {"name":"椒麻雞腿排餐盒","image":"https://images.unsplash.com/photo-1757715376249-b2a3e943cdf5?auto=format&fit=crop&w=800&q=80","category":"餐盒","price":180,"options":"bento",
          "description":"去皮雞腿排、自製椒麻醬、高麗菜、白飯。",
          "nutrition":{"calories":560,"protein":36,"fat":18,"carbs":58,"fiber":5,"sodium":780,"sugar":6},"allergens":["花生"]},
-        {"name":"鹽烤鯖魚餐盒","category":"餐盒","price":190,"options":"bento",
+        {"name":"鹽烤鯖魚餐盒","image":"https://images.unsplash.com/photo-1600699899970-b1c9fadd8f9e?auto=format&fit=crop&w=800&q=80","category":"餐盒","price":190,"options":"bento",
          "description":"挪威鯖魚、溏心蛋、季節蔬菜、白飯。富含 Omega-3。",
          "nutrition":{"calories":610,"protein":32,"fat":26,"carbs":55,"fiber":5,"sodium":690,"sugar":3},"allergens":["海鮮","蛋"]},
-        {"name":"和風豆腐溫沙拉","category":"沙拉","price":140,"options":"bowl",
+        {"name":"和風豆腐溫沙拉","image":"https://images.unsplash.com/photo-1785031765104-9af3d84fd3ff?auto=format&fit=crop&w=800&q=80","category":"沙拉","price":140,"options":"bowl",
          "description":"板豆腐、毛豆、玉米、生菜。素食者也可以吃。",
          "nutrition":{"calories":290,"protein":19,"fat":13,"carbs":24,"fiber":8,"sodium":320,"sugar":5},"allergens":["大豆"]},
-        {"name":"番茄蔬菜雞湯","category":"湯品","price":70,
+        {"name":"番茄蔬菜雞湯","image":"https://images.unsplash.com/photo-1788141485442-f0d4ce4dca2e?auto=format&fit=crop&w=800&q=80","category":"湯品","price":70,
          "description":"牛番茄、洋蔥、高麗菜與雞胸丁慢火熬煮。",
          "nutrition":{"calories":120,"protein":11,"fat":3,"carbs":12,"fiber":3,"sodium":480,"sugar":6},"allergens":[]},
-        {"name":"堅果優格杯","category":"點心","price":80,
+        {"name":"堅果優格杯","image":"https://images.unsplash.com/photo-1675868022402-631b0aebd053?auto=format&fit=crop&w=800&q=80","category":"點心","price":80,
          "description":"無糖優格、綜合堅果、新鮮莓果。",
          "nutrition":{"calories":250,"protein":12,"fat":14,"carbs":20,"fiber":3,"sodium":60,"sugar":12},"allergens":["奶","堅果"]},
-        {"name":"無糖豆漿","category":"飲品","price":35,"options":"drink",
+        {"name":"無糖豆漿","image":"https://images.unsplash.com/photo-1517448931760-9bf4414148c5?auto=format&fit=crop&w=800&q=80","category":"飲品","price":35,"options":"drink",
          "description":"非基改黃豆現磨。",
          "nutrition":{"calories":110,"protein":9,"fat":5,"carbs":6,"fiber":2,"sodium":15,"sugar":1},"allergens":["大豆"]},
-        {"name":"無糖綠茶","category":"飲品","price":30,"options":"drink",
+        {"name":"無糖綠茶","image":"https://images.unsplash.com/photo-1777891257802-5355f1d013ee?auto=format&fit=crop&w=800&q=80","category":"飲品","price":30,"options":"drink",
          "description":"台灣四季春茶葉。",
          "nutrition":{"calories":0,"protein":0,"fat":0,"carbs":0,"fiber":0,"sodium":5,"sugar":0},"allergens":[]}
       ]
@@ -122,20 +125,20 @@ declare
       "name": "Muscle Fuel 健康餐（示範）",
       "description": "示範店家：用來體驗點餐流程，訂單不會真的製作。主打增肌高蛋白餐盒。",
       "phone": "02-0000-0001", "address": "台北市大安區忠孝東路四段（示範地址）", "lat": 25.041, "lng": 121.55,
-      "cover": "https://images.unsplash.com/photo-1532550907401-a500c9a57435?auto=format&fit=crop&w=1200&q=80",
+      "cover": "https://images.unsplash.com/photo-1788227382148-cb8501f2591c?auto=format&fit=crop&w=1200&q=80",
       "open": "10:30", "close": "21:00", "closedDays": [],
       "pickup": true, "delivery": true, "deliveryFee": 30, "serviceFee": 15, "discount": 15, "minOrder": 150, "prep": 20,
       "products": [
-        {"name":"舒肥雞胸藜麥餐盒","category":"增肌餐盒","price":160,"options":"bento","image":"https://images.unsplash.com/photo-1532550907401-a500c9a57435?auto=format&fit=crop&w=800&q=80",
+        {"name":"舒肥雞胸藜麥餐盒","image":"https://images.unsplash.com/photo-1762631383846-6bead15b9796?auto=format&fit=crop&w=800&q=80","category":"增肌餐盒","price":160,"options":"bento",
          "description":"低溫舒肥雞胸、藜麥飯、花椰菜、南瓜。",
          "nutrition":{"calories":450,"protein":42,"fat":8,"carbs":45,"fiber":6,"sodium":450,"sugar":3},"allergens":[]},
-        {"name":"雙倍雞胸增肌餐盒","category":"增肌餐盒","price":220,"options":"bento",
+        {"name":"雙倍雞胸增肌餐盒","image":"https://images.unsplash.com/photo-1788227382148-cb8501f2591c?auto=format&fit=crop&w=800&q=80","category":"增肌餐盒","price":220,"options":"bento",
          "description":"兩份舒肥雞胸，一餐 70 克蛋白質。",
          "nutrition":{"calories":640,"protein":72,"fat":11,"carbs":48,"fiber":6,"sodium":640,"sugar":3},"allergens":[]},
-        {"name":"牛肉地瓜能量餐盒","category":"增肌餐盒","price":210,
+        {"name":"牛肉地瓜能量餐盒","image":"https://images.unsplash.com/photo-1778784153322-9b20b164012c?auto=format&fit=crop&w=800&q=80","category":"增肌餐盒","price":210,
          "description":"嫩煎牛肩、烤地瓜、四季豆。",
          "nutrition":{"calories":580,"protein":38,"fat":20,"carbs":55,"fiber":7,"sodium":520,"sugar":9},"allergens":[]},
-        {"name":"乳清蛋白飲","category":"飲品","price":90,
+        {"name":"乳清蛋白飲","image":"https://images.unsplash.com/photo-1774935989989-922da81ad1bc?auto=format&fit=crop&w=800&q=80","category":"飲品","price":90,
          "description":"巧克力口味，一瓶 25 克蛋白質。",
          "nutrition":{"calories":160,"protein":25,"fat":2,"carbs":8,"fiber":1,"sodium":150,"sugar":3},"allergens":["奶","大豆"]}
       ]
@@ -145,17 +148,17 @@ declare
       "name": "Daily Fresh 輕食（示範）",
       "description": "示範店家：用來體驗點餐流程，訂單不會真的製作。沙拉與五穀飯輕食。",
       "phone": "02-0000-0002", "address": "台北市信義區松仁路（示範地址）", "lat": 25.036, "lng": 121.568,
-      "cover": "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=1200&q=80",
+      "cover": "https://images.unsplash.com/photo-1675209705883-7aec595f5aa8?auto=format&fit=crop&w=1200&q=80",
       "open": "10:00", "close": "19:30", "closedDays": [0],
       "pickup": true, "delivery": true, "deliveryFee": 35, "serviceFee": 15, "discount": 0, "minOrder": 0, "prep": 20,
       "products": [
-        {"name":"香煎鮭魚五穀飯","category":"五穀飯","price":220,"options":"bento","image":"https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=800&q=80",
+        {"name":"香煎鮭魚五穀飯","image":"https://images.unsplash.com/photo-1675209705883-7aec595f5aa8?auto=format&fit=crop&w=800&q=80","category":"五穀飯","price":220,"options":"bento",
          "description":"智利鮭魚、五穀飯、烤時蔬。",
          "nutrition":{"calories":580,"protein":35,"fat":18,"carbs":60,"fiber":7,"sodium":580,"sugar":4},"allergens":["海鮮"]},
-        {"name":"雞肉凱薩沙拉","category":"沙拉","price":160,"options":"bowl",
+        {"name":"雞肉凱薩沙拉","image":"https://images.unsplash.com/photo-1782839577893-da9383e55c96?auto=format&fit=crop&w=800&q=80","category":"沙拉","price":160,"options":"bowl",
          "description":"烤雞胸、蘿蔓、帕瑪森起司、水煮蛋。",
          "nutrition":{"calories":380,"protein":32,"fat":20,"carbs":14,"fiber":4,"sodium":610,"sugar":3},"allergens":["蛋","奶"]},
-        {"name":"鷹嘴豆鮮蔬捲餅","category":"捲餅","price":140,
+        {"name":"鷹嘴豆鮮蔬捲餅","image":"https://images.unsplash.com/photo-1581570378527-9585a11deea2?auto=format&fit=crop&w=800&q=80","category":"捲餅","price":140,
          "description":"全麥餅皮、鷹嘴豆泥、烤甜椒、生菜。",
          "nutrition":{"calories":420,"protein":15,"fat":12,"carbs":62,"fiber":10,"sodium":540,"sugar":6},"allergens":["麩質"]}
       ]
@@ -165,20 +168,20 @@ declare
       "name": "老張健康滷（示範）",
       "description": "示範店家：用來體驗點餐流程，訂單不會真的製作。少油少鹽的中藥滷味，營業到半夜。",
       "phone": "02-0000-0003", "address": "台北市中山區南京東路二段（示範地址）", "lat": 25.052, "lng": 121.534,
-      "cover": "https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=1200&q=80",
+      "cover": "https://images.unsplash.com/photo-1788795170470-46ca5ad5476c?auto=format&fit=crop&w=1200&q=80",
       "open": "11:00", "close": "01:00", "closedDays": [],
       "pickup": true, "delivery": false, "deliveryFee": 0, "serviceFee": 0, "discount": 0, "minOrder": 0, "prep": 10,
       "products": [
-        {"name":"低脂牛腱滷味拼盤","category":"滷味","price":130,"image":"https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=800&q=80",
+        {"name":"低脂牛腱滷味拼盤","image":"https://images.unsplash.com/photo-1791352913774-684efe96627f?auto=format&fit=crop&w=800&q=80","category":"滷味","price":130,
          "description":"牛腱、海帶、豆干、青菜。",
          "nutrition":{"calories":320,"protein":30,"fat":10,"carbs":15,"fiber":2,"sodium":850,"sugar":4},"allergens":["大豆"]},
-        {"name":"滷雞腿便當","category":"便當","price":150,"options":"bento",
+        {"name":"滷雞腿便當","image":"https://images.unsplash.com/photo-1775039983787-3fe9b416c545?auto=format&fit=crop&w=800&q=80","category":"便當","price":150,"options":"bento",
          "description":"去皮滷雞腿、三樣青菜、白飯。",
          "nutrition":{"calories":620,"protein":38,"fat":20,"carbs":68,"fiber":5,"sodium":920,"sugar":5},"allergens":[]},
-        {"name":"綜合蔬菜滷味","category":"滷味","price":90,
+        {"name":"綜合蔬菜滷味","image":"https://images.unsplash.com/photo-1788795170470-46ca5ad5476c?auto=format&fit=crop&w=800&q=80","category":"滷味","price":90,
          "description":"高麗菜、花椰菜、玉米筍、香菇、豆干。",
          "nutrition":{"calories":180,"protein":10,"fat":6,"carbs":20,"fiber":6,"sodium":700,"sugar":5},"allergens":["大豆"]},
-        {"name":"滷蛋","category":"加點","price":15,
+        {"name":"滷蛋","image":"https://images.unsplash.com/photo-1540927478240-6641951d3b42?auto=format&fit=crop&w=800&q=80","category":"加點","price":15,
          "description":"",
          "nutrition":{"calories":75,"protein":6,"fat":5,"carbs":1,"fiber":0,"sodium":210,"sugar":1},"allergens":["蛋"]}
       ]
@@ -188,17 +191,17 @@ declare
       "name": "Halo Poke（示範）",
       "description": "示範店家：用來體驗點餐流程，訂單不會真的製作。夏威夷波奇碗。",
       "phone": "02-0000-0004", "address": "台北市大安區復興南路一段（示範地址）", "lat": 25.039, "lng": 121.544,
-      "cover": "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?auto=format&fit=crop&w=1200&q=80",
+      "cover": "https://images.unsplash.com/photo-1768326119213-e0ad875083a3?auto=format&fit=crop&w=1200&q=80",
       "open": "11:00", "close": "20:00", "closedDays": [1],
       "pickup": true, "delivery": true, "deliveryFee": 30, "serviceFee": 15, "discount": 10, "minOrder": 0, "prep": 15,
       "products": [
-        {"name":"炙燒鮭魚波奇碗","category":"波奇碗","price":190,"options":"bowl","image":"https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=800&q=80",
+        {"name":"炙燒鮭魚波奇碗","image":"https://images.unsplash.com/photo-1768326119213-e0ad875083a3?auto=format&fit=crop&w=800&q=80","category":"波奇碗","price":190,"options":"bowl",
          "description":"炙燒鮭魚、壽司飯、毛豆、海帶芽、小黃瓜。",
          "nutrition":{"calories":480,"protein":28,"fat":12,"carbs":55,"fiber":5,"sodium":620,"sugar":7},"allergens":["海鮮","大豆"]},
-        {"name":"鮪魚酪梨波奇碗","category":"波奇碗","price":210,"options":"bowl",
+        {"name":"鮪魚酪梨波奇碗","image":"https://images.unsplash.com/photo-1768326119231-bf064c1b8fdf?auto=format&fit=crop&w=800&q=80","category":"波奇碗","price":210,"options":"bowl",
          "description":"生食級鮪魚、酪梨、紫米飯。",
          "nutrition":{"calories":520,"protein":30,"fat":18,"carbs":52,"fiber":7,"sodium":580,"sugar":5},"allergens":["海鮮"]},
-        {"name":"豆腐毛豆素食碗","category":"波奇碗","price":160,"options":"bowl",
+        {"name":"豆腐毛豆素食碗","image":"https://images.unsplash.com/photo-1763000215238-38350d3e41ac?auto=format&fit=crop&w=800&q=80","category":"波奇碗","price":160,"options":"bowl",
          "description":"香煎板豆腐、毛豆、玉米、紫甘藍。",
          "nutrition":{"calories":410,"protein":22,"fat":14,"carbs":48,"fiber":9,"sodium":480,"sugar":6},"allergens":["大豆"]}
       ]
@@ -212,13 +215,13 @@ declare
       "open": "11:30", "close": "22:30", "closedDays": [],
       "pickup": true, "delivery": true, "deliveryFee": 35, "serviceFee": 15, "discount": 0, "minOrder": 200, "prep": 20,
       "products": [
-        {"name":"增肌牛肉漢堡（無麵包）","category":"漢堡","price":200,"image":"https://images.unsplash.com/photo-1568901346375-23c9450c58cd?auto=format&fit=crop&w=800&q=80",
+        {"name":"增肌牛肉漢堡（無麵包）","image":"https://images.unsplash.com/photo-1764018601476-e5fac1f27893?auto=format&fit=crop&w=800&q=80","category":"漢堡","price":200,
          "description":"100% 牛肉排用生菜包起來，低碳水。",
          "nutrition":{"calories":520,"protein":45,"fat":25,"carbs":10,"fiber":3,"sodium":680,"sugar":4},"allergens":["奶"]},
-        {"name":"雞胸全麥堡","category":"漢堡","price":170,
+        {"name":"雞胸全麥堡","image":"https://images.unsplash.com/photo-1645024679624-e8351ac98f01?auto=format&fit=crop&w=800&q=80","category":"漢堡","price":170,
          "description":"烤雞胸、全麥麵包、番茄、生菜。",
          "nutrition":{"calories":450,"protein":38,"fat":11,"carbs":48,"fiber":6,"sodium":720,"sugar":6},"allergens":["麩質","蛋"]},
-        {"name":"烤地瓜薯條","category":"配餐","price":60,
+        {"name":"烤地瓜薯條","image":"https://images.unsplash.com/photo-1745792714512-77cffdb16020?auto=format&fit=crop&w=800&q=80","category":"配餐","price":60,
          "description":"不油炸，烤箱烤製。",
          "nutrition":{"calories":190,"protein":2,"fat":5,"carbs":34,"fiber":4,"sodium":180,"sugar":9},"allergens":[]}
       ]
@@ -228,17 +231,17 @@ declare
       "name": "Green Day（示範）",
       "description": "示範店家：用來體驗點餐流程，訂單不會真的製作。蔬食沙拉與湯品。",
       "phone": "02-0000-0006", "address": "台北市松山區民生東路三段（示範地址）", "lat": 25.058, "lng": 121.545,
-      "cover": "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?auto=format&fit=crop&w=1200&q=80",
+      "cover": "https://images.unsplash.com/photo-1653107509005-8a86a6f0c79c?auto=format&fit=crop&w=1200&q=80",
       "open": "09:00", "close": "19:00", "closedDays": [0, 6],
       "pickup": true, "delivery": true, "deliveryFee": 30, "serviceFee": 12, "discount": 0, "minOrder": 0, "prep": 15,
       "products": [
-        {"name":"義式烤蔬菜溫沙拉","category":"沙拉","price":150,"options":"bowl","image":"https://images.unsplash.com/photo-1512621776951-a57141f2eefd?auto=format&fit=crop&w=800&q=80",
+        {"name":"義式烤蔬菜溫沙拉","image":"https://images.unsplash.com/photo-1653107509005-8a86a6f0c79c?auto=format&fit=crop&w=800&q=80","category":"沙拉","price":150,"options":"bowl",
          "description":"櫛瓜、甜椒、茄子、蘑菇，橄欖油烤製。",
          "nutrition":{"calories":280,"protein":12,"fat":15,"carbs":30,"fiber":9,"sodium":320,"sugar":8},"allergens":[]},
-        {"name":"藜麥鷹嘴豆沙拉","category":"沙拉","price":160,"options":"bowl",
+        {"name":"藜麥鷹嘴豆沙拉","image":"https://images.unsplash.com/photo-1771074168450-11e3f8b7aa53?auto=format&fit=crop&w=800&q=80","category":"沙拉","price":160,"options":"bowl",
          "description":"三色藜麥、鷹嘴豆、小番茄、芝麻葉。",
          "nutrition":{"calories":360,"protein":15,"fat":12,"carbs":48,"fiber":11,"sodium":290,"sugar":6},"allergens":[]},
-        {"name":"每日蔬菜湯","category":"湯品","price":80,
+        {"name":"每日蔬菜湯","image":"https://images.unsplash.com/photo-1741796105489-33ea406ac1b7?auto=format&fit=crop&w=800&q=80","category":"湯品","price":80,
          "description":"每天不同的季節蔬菜濃湯，不加奶油。",
          "nutrition":{"calories":110,"protein":4,"fat":3,"carbs":18,"fiber":5,"sodium":420,"sugar":7},"allergens":[]}
       ]
@@ -248,17 +251,17 @@ declare
       "name": "Yogurt House（示範）",
       "description": "示範店家：用來體驗點餐流程，訂單不會真的製作。優格碗與咖啡。",
       "phone": "02-0000-0007", "address": "台北市松山區南京東路三段（示範地址）", "lat": 25.052, "lng": 121.546,
-      "cover": "https://images.unsplash.com/photo-1482049016688-2d3e1b311543?auto=format&fit=crop&w=1200&q=80",
+      "cover": "https://images.unsplash.com/photo-1763825613390-287a9db0803d?auto=format&fit=crop&w=1200&q=80",
       "open": "08:00", "close": "23:00", "closedDays": [],
       "pickup": true, "delivery": true, "deliveryFee": 30, "serviceFee": 10, "discount": 0, "minOrder": 0, "prep": 10,
       "products": [
-        {"name":"希臘優格高蛋白碗","category":"優格碗","price":140,"image":"https://images.unsplash.com/photo-1482049016688-2d3e1b311543?auto=format&fit=crop&w=800&q=80",
+        {"name":"希臘優格高蛋白碗","image":"https://images.unsplash.com/photo-1763825613390-287a9db0803d?auto=format&fit=crop&w=800&q=80","category":"優格碗","price":140,
          "description":"希臘優格、燕麥脆片、香蕉、奇亞籽。",
          "nutrition":{"calories":350,"protein":25,"fat":5,"carbs":40,"fiber":5,"sodium":120,"sugar":18},"allergens":["奶","麩質"]},
-        {"name":"莓果燕麥優格杯","category":"優格碗","price":110,
+        {"name":"莓果燕麥優格杯","image":"https://images.unsplash.com/photo-1559826521-abd2bdc6d026?auto=format&fit=crop&w=800&q=80","category":"優格碗","price":110,
          "description":"無糖優格、藍莓、草莓、燕麥。",
          "nutrition":{"calories":260,"protein":13,"fat":4,"carbs":42,"fiber":5,"sodium":90,"sugar":20},"allergens":["奶","麩質"]},
-        {"name":"無糖拿鐵","category":"咖啡","price":70,"options":"milk",
+        {"name":"無糖拿鐵","image":"https://images.unsplash.com/photo-1461023058943-07fcbe16d735?auto=format&fit=crop&w=800&q=80","category":"咖啡","price":70,"options":"milk",
          "description":"中焙咖啡豆，可以換燕麥奶。",
          "nutrition":{"calories":140,"protein":8,"fat":7,"carbs":11,"fiber":0,"sodium":110,"sugar":11},"allergens":["奶"]}
       ]
