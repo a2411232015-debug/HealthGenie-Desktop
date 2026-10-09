@@ -15,6 +15,11 @@ export const dangerButton =
 
 export const card = 'rounded-2xl border border-slate-100 bg-white shadow-sm';
 
+/** 圖片網址失效時把圖片藏起來，顯示底下的灰色底，而不是破圖示 */
+export const hideBrokenImage = (event: React.SyntheticEvent<HTMLImageElement>): void => {
+  event.currentTarget.style.visibility = 'hidden';
+};
+
 export const Spinner: React.FC<{ className?: string }> = ({ className = 'h-5 w-5' }) => (
   <Loader2 className={`animate-spin ${className}`} aria-hidden />
 );

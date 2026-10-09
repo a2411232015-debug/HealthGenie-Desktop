@@ -92,6 +92,14 @@ where id = (select id from auth.users where email = 'you@example.com');
 
 重新整理網站後，左側選單會出現「平台管理」。
 
+### （選用）放入示範店家與餐點
+
+想先體驗整個流程，可以放入示範資料：打開 `supabase/seed/demo_data.sql`，把裡面的 `you@example.com` 換成你的 Email，貼到 SQL Editor 執行。
+
+- 「我的健康餐盒」（8 道餐點）會掛在你的帳號底下：你可以自己下一張單，再到店家後台接單，完整體驗顧客與店家兩邊
+- 另外 7 間店名標有「示範」，可以下單體驗，但沒有人會接單
+- 正式上線前執行 `supabase/seed/remove_demo_data.sql` 移除 7 間示範店家
+
 ### 5. 開啟 AI 功能（選用）
 
 AI 用來「拍照估算熱量」和「幫店家估算營養標示」。沒設定也不影響點餐。

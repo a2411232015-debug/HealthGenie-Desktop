@@ -7,7 +7,7 @@ import { describeToday } from '../../utils/hours';
 import { distanceKm, formatDistance, getSavedLocation, requestLocation, Coordinates } from '../../utils/geo';
 import { showToast } from '../../utils/notifications';
 import { formatCurrency } from '../../utils/pricing';
-import { Badge, EmptyState, ErrorState, inputClass, PageHeader, PageLoading, secondaryButton } from '../ui';
+import { Badge, EmptyState, ErrorState, hideBrokenImage, inputClass, PageHeader, PageLoading, secondaryButton } from '../ui';
 import { orderingMode, STORE_STATE_LABEL, storeState } from './storeStatus';
 
 const StoreCard: React.FC<{ merchant: Merchant; distance: number | null }> = ({ merchant, distance }) => {
@@ -16,7 +16,7 @@ const StoreCard: React.FC<{ merchant: Merchant; distance: number | null }> = ({ 
     <a href={`#/store/${merchant.id}`} className="group flex flex-col overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm transition hover:shadow-lg">
       <div className="relative h-36 bg-gradient-to-br from-teal-100 to-emerald-50">
         {merchant.coverImageUrl
-          ? <img src={merchant.coverImageUrl} alt="" className={`h-full w-full object-cover ${state === 'open' ? '' : 'grayscale'}`} loading="lazy" />
+          ? <img src={merchant.coverImageUrl} alt="" className={`h-full w-full object-cover ${state === 'open' ? '' : 'grayscale'}`} loading="lazy" onError={hideBrokenImage} />
           : <div className="flex h-full items-center justify-center text-teal-300"><Store className="h-14 w-14" /></div>}
         <span className={`absolute left-3 top-3 rounded-full px-3 py-1 text-xs font-bold ${state === 'open' ? 'bg-emerald-500 text-white' : 'bg-slate-800/80 text-white'}`}>
           {STORE_STATE_LABEL[state]}{state === 'closed' && orderingMode(merchant) === 'preorder' ? '・可預約' : ''}

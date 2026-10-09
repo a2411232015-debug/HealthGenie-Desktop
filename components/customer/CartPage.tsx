@@ -6,7 +6,7 @@ import { useTodayIntake } from '../../lib/health';
 import { navigate } from '../../lib/router';
 import { formatNumber } from '../../utils/format';
 import { cartNutrition, computeTotals, formatCurrency } from '../../utils/pricing';
-import { ConfirmDialog, EmptyState, ErrorState, PageHeader, PageLoading, card, primaryButton, secondaryButton } from '../ui';
+import { ConfirmDialog, EmptyState, ErrorState, hideBrokenImage, PageHeader, PageLoading, card, primaryButton, secondaryButton } from '../ui';
 import { orderingMode, storeState, STORE_STATE_LABEL } from './storeStatus';
 import { useCartStore } from './useCartStore';
 
@@ -52,7 +52,7 @@ export const CartPage: React.FC = () => {
             return (
               <article key={item.key} className={`${card} flex gap-4 p-4 ${bad ? 'border-red-200 bg-red-50/40' : ''}`}>
                 <div className="h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-slate-100">
-                  {item.imageUrl ? <img src={item.imageUrl} alt="" className="h-full w-full object-cover" /> : <div className="flex h-full items-center justify-center text-slate-300"><UtensilsCrossed className="h-7 w-7" /></div>}
+                  {item.imageUrl ? <img src={item.imageUrl} alt="" className="h-full w-full object-cover" onError={hideBrokenImage} /> : <div className="flex h-full items-center justify-center text-slate-300"><UtensilsCrossed className="h-7 w-7" /></div>}
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex justify-between gap-3">
