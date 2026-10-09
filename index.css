@@ -1,3 +1,7 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 html {
   color-scheme: light;
 }
@@ -21,4 +25,67 @@ select:focus-visible,
 textarea:focus-visible {
   outline: 2px solid #14b8a6;
   outline-offset: 2px;
+}
+
+/* ===== 廚房出單（只在列印時顯示） ===== */
+#print-root {
+  display: none;
+}
+
+@media print {
+  @page {
+    margin: 4mm;
+  }
+
+  body > *:not(#print-root) {
+    display: none !important;
+  }
+
+  #print-root {
+    display: block !important;
+  }
+
+  .print-ticket {
+    width: 72mm;
+    color: #000;
+    font-size: 12px;
+    line-height: 1.45;
+  }
+
+  .print-ticket p {
+    margin: 0;
+  }
+
+  .print-ticket hr {
+    border: 0;
+    border-top: 1px dashed #000;
+    margin: 6px 0;
+  }
+
+  .print-ticket .pt-center {
+    text-align: center;
+  }
+
+  .print-ticket .pt-number {
+    font-size: 32px;
+    font-weight: 900;
+    line-height: 1.1;
+  }
+
+  .print-ticket .pt-bold {
+    font-weight: 700;
+  }
+
+  .print-ticket .pt-small {
+    font-size: 11px;
+  }
+
+  .print-ticket .pt-item {
+    margin-bottom: 4px;
+  }
+
+  .print-ticket .pt-row {
+    display: flex;
+    justify-content: space-between;
+  }
 }

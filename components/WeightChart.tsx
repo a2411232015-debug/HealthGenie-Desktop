@@ -21,7 +21,7 @@ export const WeightChart: React.FC<WeightChartProps> = ({ data, targetWeight }) 
   const minWeight = Math.min(...weights, targetWeight) - 2;
   const maxWeight = Math.max(...weights, targetWeight) + 2;
   
-  const xScale = (index: number) => padding + (index * (width - padding * 2) / (data.length - 1));
+  const xScale = (index: number) => padding + (index * (width - padding * 2) / Math.max(1, data.length - 1));
   const yScale = (weight: number) => height - padding - ((weight - minWeight) / (maxWeight - minWeight)) * (height - padding * 2);
 
   // Generate path for the line
@@ -129,7 +129,7 @@ export const WeightChart: React.FC<WeightChartProps> = ({ data, targetWeight }) 
                 fill="#94a3b8" 
                 fontSize={data.length > 30 ? "10" : "12"}
               >
-                {d.date}
+                {/^\d{4}-\d{2}-\d{2}$/.test(d.date) ? `${Number(d.date.slice(5, 7))}/${Number(d.date.slice(8, 10))}` : d.date}
               </text>
             )}
           </g>

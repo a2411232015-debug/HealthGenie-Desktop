@@ -3,47 +3,18 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>HealthGenie AI - 您的健康管家</title>
+    <title>HealthGenie 健康點餐</title>
+    <meta name="description" content="HealthGenie：看得到營養標示的健康餐點外送與自取平台" />
+    <meta name="theme-color" content="#0d9488" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-      tailwind.config = {
-        theme: {
-          extend: {
-            colors: {
-              primary: {
-                50: '#f0fdfa',
-                100: '#ccfbf1',
-                200: '#99f6e4',
-                300: '#5eead4',
-                400: '#2dd4bf',
-                500: '#14b8a6',
-                600: '#0d9488',
-                700: '#0f766e',
-                800: '#115e59',
-                900: '#134e4a',
-              }
-            }
-          }
-        }
-      }
-    </script>
-    <script type="importmap">
-      {
-        "imports": {
-          "react/": "https://esm.sh/react@^19.2.3/",
-          "react": "https://esm.sh/react@^19.2.3",
-          "lucide-react": "https://esm.sh/lucide-react@^0.562.0",
-          "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
-          "@google/genai": "https://esm.sh/@google/genai@^1.34.0",
-          "react-markdown": "https://esm.sh/react-markdown@^10.1.0"
-        }
-      }
-    </script>
-    <link rel="stylesheet" href="/index.css" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="HealthGenie" />
   </head>
   <body class="bg-slate-50 text-slate-900 antialiased selection:bg-primary-200 selection:text-primary-900">
     <div id="root"></div>
+    <div id="print-root"></div>
     <script type="module" src="/index.tsx"></script>
   </body>
 </html>

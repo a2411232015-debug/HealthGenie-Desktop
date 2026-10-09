@@ -1,6 +1,8 @@
 name: Build and Deploy
 
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -17,23 +19,31 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: "22"
           cache: 'npm'
 
+      # 使用 npm install（而不是 npm ci），新增或移除套件後也能正常建置
       - name: Install dependencies
-        run: npm ci
+        run: npm install --no-audit --no-fund
 
+      - name: Test
+        run: npm test
+
+      # 這裡只放「本來就會出現在網頁裡、可以公開」的 Supabase 網址與 Publishable key。
+      # 要換成別的 Supabase 專案，在 GitHub Secrets 設定同名的值即可覆蓋。
+      # Gemini 金鑰請放在 Supabase 的 Edge Function Secrets，絕對不要放進網頁建置。
       - name: Build
         run: npm run build
         env:
-          VITE_GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
-          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || 'https://iwkonyrmlkfwpzvwbtja.supabase.co' }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_yuL9fnksaB6mu4tuuyneSg_Fj9sjj05' }}
+          VITE_OPERATOR_NAME: ${{ vars.VITE_OPERATOR_NAME }}
+          VITE_CONTACT_EMAIL: ${{ vars.VITE_CONTACT_EMAIL }}
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
