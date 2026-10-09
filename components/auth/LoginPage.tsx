@@ -16,6 +16,10 @@ const translateAuthError = (error: unknown): string => {
   if (/Password should be at least/i.test(message)) return '密碼至少需要 8 個字元';
   if (/rate limit|too many/i.test(message)) return '嘗試次數太多，請稍等幾分鐘再試';
   if (/provider is not enabled|Unsupported provider/i.test(message)) return '平台尚未開啟 Google 登入，請改用 Email';
+  if (/Email address not authorized|Error sending (confirmation|recovery|magic link)? ?email/i.test(message)) {
+    return '平台目前無法寄出 Email，請稍後再試或聯絡平台客服';
+  }
+  if (/Signups not allowed/i.test(message)) return '平台目前暫停開放註冊';
   return message;
 };
 

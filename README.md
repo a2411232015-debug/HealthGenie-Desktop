@@ -77,6 +77,10 @@ Supabase
   - Redirect URLs 加入同一個網址，以及本機測試用的 `http://localhost:3000/`
 - （選用）想讓顧客用 Google 登入，在 Providers 開啟 Google 並依 Supabase 的說明填入 Google 的 Client ID
 
+> ⚠️ **關於 Email**：Supabase 內建的寄信服務只會寄給「Supabase 組織成員」的信箱，而且每小時只能寄幾封，一般顧客收不到驗證信。
+> - 剛上線時：在 **Sign In / Providers → Email** 把 **Confirm email 關掉**，顧客註冊後就能直接登入。
+> - 想讓顧客也能用「忘記密碼」：到 **Authentication → Emails → SMTP Settings** 設定自己的寄信服務（例如 Resend、Brevo，或 Gmail 的應用程式密碼），之後可以再把 Confirm email 打開。
+
 ### 4. 把自己設成平台管理員
 
 先在網站上用 Email 註冊一個帳號，然後回到 SQL Editor 執行（把 Email 換成你的）：
@@ -93,7 +97,8 @@ where id = (select id from auth.users where email = 'you@example.com');
 AI 用來「拍照估算熱量」和「幫店家估算營養標示」。沒設定也不影響點餐。
 
 1. 到 [Google AI Studio](https://aistudio.google.com/apikey) 取得 Gemini API 金鑰
-2. 在電腦上執行（需要已安裝 Node.js）：
+2. 到 Supabase 後台 **Edge Functions → Secrets**，新增名稱 `GEMINI_API_KEY`、值貼上金鑰
+3. 部署兩個伺服器函式。可以在後台 **Edge Functions → Deploy a new function** 貼上 `supabase/functions/` 裡的程式並關閉 JWT 驗證，或在電腦上執行（需要已安裝 Node.js）：
 
 ```bash
 npx supabase login
@@ -121,11 +126,11 @@ npx supabase functions deploy account --no-verify-jwt
 
 ### 7. 部署到 GitHub Pages
 
-1. GitHub 專案 → Settings → Secrets and variables → Actions：
-   - **Secrets** 新增 `VITE_SUPABASE_URL`、`VITE_SUPABASE_PUBLISHABLE_KEY`
-   - **Variables**（選填）新增 `VITE_OPERATOR_NAME`（營運者名稱）、`VITE_CONTACT_EMAIL`（客服信箱），會顯示在隱私權政策與服務條款
-2. Settings → Pages → Source 選 **GitHub Actions**
-3. Actions → **Build and Deploy** → Run workflow
+1. Settings → Pages → Source 選 **GitHub Actions**
+2. （選填）Settings → Secrets and variables → Actions → **Variables** 新增 `VITE_OPERATOR_NAME`（營運者名稱）、`VITE_CONTACT_EMAIL`（客服信箱），會顯示在隱私權政策與服務條款
+3. Actions → **Build and Deploy** → Run workflow（之後每次更新 `main` 都會自動部署）
+
+`deploy.yml` 已經寫入本專案 Supabase 的網址與 Publishable key（這兩個本來就會出現在網頁裡，可以公開）。如果要換成別的 Supabase 專案，在 **Secrets** 新增 `VITE_SUPABASE_URL`、`VITE_SUPABASE_PUBLISHABLE_KEY` 就會覆蓋。
 
 ## 第一次開店流程
 
