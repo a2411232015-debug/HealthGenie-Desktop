@@ -9,19 +9,29 @@ interface Step {
   description: string;
 }
 
-const stepsFor = (fulfillment: Fulfillment): Step[] => [
-  { key: 'pending', label: '已送出訂單', description: '等待店家確認' },
-  { key: 'preparing', label: '店家製作中', description: '店家已接單，正在準備餐點' },
-  fulfillment === 'pickup'
-    ? { key: 'ready', label: '可以取餐', description: '餐點已完成，請到店取餐並付款' }
-    : { key: 'ready', label: '餐點完成', description: '準備出發配送' },
-  ...(fulfillment === 'delivery' ? [{ key: 'delivering' as OrderStatus, label: '配送中', description: '餐點正在路上，送達時付款' }] : []),
-  { key: 'completed', label: '已完成', description: '祝你用餐愉快' },
-];
+const stepsFor = (fulfillment: Fulfillment, prepMinutes: number | null): Step[] => {
+  const preparing = { key: 'preparing' as OrderStatus, label: '店家製作中', description: prepMinutes ? `店家已接單，製作時間約 ${prepMinutes} 分鐘` : '店家已接單，正在準備餐點' };
+  if (fulfillment === 'pickup') {
+    return [
+      { key: 'pending', label: '已送出訂單', description: '等待店家確認' },
+      preparing,
+      { key: 'ready', label: '可以取餐', description: '餐點已完成，請到店取餐並付款' },
+      { key: 'completed', label: '已完成', description: '祝你用餐愉快' },
+    ];
+  }
+  return [
+    { key: 'pending', label: '已送出訂單', description: '等待店家確認' },
+    preparing,
+    { key: 'ready', label: '餐點完成', description: '等待外送員取餐' },
+    { key: 'delivering', label: '外送員配送中', description: '餐點正在路上，送達時以現金付款' },
+    { key: 'delivered', label: '已送達', description: '外送員已送達，請按「我已收到餐點」' },
+    { key: 'completed', label: '已完成', description: '已確認收到餐點，祝你用餐愉快' },
+  ];
+};
 
-export const OrderProgressTimeline: React.FC<{ status: OrderStatus; fulfillment: Fulfillment; history: StatusHistoryEntry[] }> = ({ status, fulfillment, history }) => {
+export const OrderProgressTimeline: React.FC<{ status: OrderStatus; fulfillment: Fulfillment; history: StatusHistoryEntry[]; prepMinutes?: number | null }> = ({ status, fulfillment, history, prepMinutes = null }) => {
   if (status === 'cancelled' || status === 'rejected') return null;
-  const steps = stepsFor(fulfillment);
+  const steps = stepsFor(fulfillment, prepMinutes);
   const currentIndex = Math.max(0, steps.findIndex((step) => step.key === status));
   return (
     <ol className="space-y-5">

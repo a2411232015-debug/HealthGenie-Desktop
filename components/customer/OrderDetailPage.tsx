@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { BookPlus, Check, Clock, MapPin, Phone, RotateCcw, Store } from 'lucide-react';
+import { BookPlus, Check, CheckCircle2, Clock, MapPin, Phone, RotateCcw, Store } from 'lucide-react';
 import { addFoodLog, fetchLoggedOrderIds, fetchOrder, fetchProducts, fetchMerchant, subscribeToOrders, updateOrderStatus } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
 import { addToCart, buildCartItem, clearCart } from '../../lib/cart';
@@ -7,12 +7,14 @@ import { notifyFoodLogsUpdated } from '../../lib/health';
 import { navigate } from '../../lib/router';
 import { useAutoRefresh, useQuery } from '../../lib/useQuery';
 import { Order } from '../../types';
+import { toCoordinates } from '../../utils/delivery';
 import { formatDateTime, formatTime } from '../../utils/format';
 import { errorMessage, showToast } from '../../utils/notifications';
 import { addNutrition, emptyNutrition, formatCurrency } from '../../utils/pricing';
 import { OrderProgressTimeline } from '../OrderProgressTimeline';
 import { isActiveStatus, OrderStatusBadge } from '../OrderStatusBadge';
-import { ConfirmDialog, ErrorState, PageHeader, PageLoading, Spinner, card, secondaryButton } from '../ui';
+import { ConfirmDialog, ErrorState, PageHeader, PageLoading, Spinner, card, primaryButton, secondaryButton } from '../ui';
+import { DeliveryTracker } from './DeliveryTracker';
 import { storeState } from './storeStatus';
 
 const orderNutrition = (order: Order) => {
@@ -25,11 +27,14 @@ export const OrderDetailPage: React.FC<{ orderId: string }> = ({ orderId }) => {
   const { userId } = useAuth();
   const query = useQuery(async () => {
     const order = await fetchOrder(orderId);
-    const logged = order ? await fetchLoggedOrderIds([order.id]) : new Set<string>();
-    return { order, logged: logged.has(orderId) };
+    const [logged, merchant] = await Promise.all([
+      order ? fetchLoggedOrderIds([order.id]) : Promise.resolve(new Set<string>()),
+      order?.fulfillment === 'delivery' ? fetchMerchant(order.merchantId).catch(() => null) : Promise.resolve(null),
+    ]);
+    return { order, logged: logged.has(orderId), store: merchant ? toCoordinates(merchant.lat, merchant.lng) : null };
   }, [orderId]);
   const [confirmCancel, setConfirmCancel] = useState(false);
-  const [busy, setBusy] = useState<'' | 'cancel' | 'log' | 'reorder'>('');
+  const [busy, setBusy] = useState<'' | 'cancel' | 'log' | 'reorder' | 'receive'>('');
   const order = query.data?.order;
   const active = order ? isActiveStatus(order.status) : false;
 
@@ -46,7 +51,7 @@ export const OrderDetailPage: React.FC<{ orderId: string }> = ({ orderId }) => {
     setBusy('cancel');
     try {
       const next = await updateOrderStatus(order.id, 'cancelled', '顧客取消訂單');
-      query.setData((current) => ({ logged: current?.logged || false, order: next }));
+      query.setData((current) => ({ logged: current?.logged || false, store: current?.store || null, order: next }));
       showToast('訂單已取消');
     } catch (caught) {
       showToast(errorMessage(caught), 'error');
@@ -54,6 +59,20 @@ export const OrderDetailPage: React.FC<{ orderId: string }> = ({ orderId }) => {
     } finally {
       setBusy('');
       setConfirmCancel(false);
+    }
+  };
+
+  const confirmReceived = async () => {
+    setBusy('receive');
+    try {
+      const next = await updateOrderStatus(order.id, 'completed');
+      query.setData((current) => ({ logged: current?.logged || false, store: current?.store || null, order: next }));
+      showToast('已確認收到餐點，訂單完成');
+    } catch (caught) {
+      showToast(errorMessage(caught), 'error');
+      void query.reload(true);
+    } finally {
+      setBusy('');
     }
   };
 
@@ -71,7 +90,7 @@ export const OrderDetailPage: React.FC<{ orderId: string }> = ({ orderId }) => {
         eatenAt: order.completedAt || undefined,
       });
       notifyFoodLogsUpdated();
-      query.setData((current) => ({ order: current?.order || order, logged: true }));
+      query.setData((current) => ({ order: current?.order || order, store: current?.store || null, logged: true }));
       showToast('已記錄到今天的飲食');
     } catch (caught) {
       showToast(errorMessage(caught), 'error');
@@ -113,19 +132,28 @@ export const OrderDetailPage: React.FC<{ orderId: string }> = ({ orderId }) => {
           <OrderStatusBadge status={order.status} fulfillment={order.fulfillment} />
           {order.scheduledFor ? (
             <p className="flex items-center gap-1.5 rounded-full bg-indigo-50 px-3 py-1 text-sm font-bold text-indigo-800"><Clock className="h-4 w-4" />預約 {formatDateTime(order.scheduledFor)} {order.fulfillment === 'pickup' ? '取餐' : '送達'}</p>
-          ) : active && order.estimatedReadyAt && (
+          ) : order.fulfillment === 'pickup' && active && order.estimatedReadyAt && (
             <p className="flex items-center gap-1.5 text-sm font-bold text-teal-700"><Clock className="h-4 w-4" />預計 {formatTime(order.estimatedReadyAt)} 完成</p>
           )}
         </div>
-        {order.status === 'pending' && <p className="mt-3 text-sm text-slate-600">店家確認訂單後就會開始製作，這個頁面會自動更新。</p>}
+        {order.status === 'pending' && <p className="mt-3 text-sm text-slate-600">店家確認訂單並設定製作時間後就會開始製作，這個頁面會自動更新。</p>}
+        {order.status === 'delivered' && (
+          <p className="mt-3 rounded-xl bg-cyan-50 px-4 py-3 text-sm font-bold text-cyan-900">外送員已送達！收到餐點後請按「我已收到餐點」完成訂單。</p>
+        )}
+        {order.fulfillment === 'delivery' && active && (
+          <div className="mt-4"><DeliveryTracker order={order} store={query.data?.store || null} /></div>
+        )}
         {order.status === 'ready' && order.fulfillment === 'pickup' && (
           <p className="mt-3 rounded-xl bg-indigo-50 px-4 py-3 text-sm font-bold text-indigo-800">餐點已完成！請到店取餐，告訴店家取餐號碼 <span className="text-lg">{order.orderNumber.split('-')[1]}</span>，並以現金付款 {formatCurrency(order.total)}。</p>
         )}
         {(order.status === 'cancelled' || order.status === 'rejected') && (
           <p className="mt-3 rounded-xl bg-slate-100 px-4 py-3 text-sm text-slate-700">{order.status === 'rejected' ? '店家無法接這張訂單' : '訂單已取消'}{order.cancelReason ? `：${order.cancelReason}` : ''}</p>
         )}
-        <div className="mt-5"><OrderProgressTimeline status={order.status} fulfillment={order.fulfillment} history={order.statusHistory} /></div>
+        <div className="mt-5"><OrderProgressTimeline status={order.status} fulfillment={order.fulfillment} history={order.statusHistory} prepMinutes={order.prepMinutes} /></div>
         <div className="mt-5 flex flex-wrap gap-2">
+          {order.fulfillment === 'delivery' && (order.status === 'delivering' || order.status === 'delivered') && (
+            <button onClick={confirmReceived} className={`${primaryButton} py-3`} disabled={Boolean(busy)}>{busy === 'receive' ? <Spinner className="h-4 w-4" /> : <CheckCircle2 className="h-4 w-4" />}我已收到餐點</button>
+          )}
           {order.status === 'pending' && (
             <button onClick={() => setConfirmCancel(true)} className={`${secondaryButton} text-red-600`} disabled={Boolean(busy)}>取消訂單</button>
           )}

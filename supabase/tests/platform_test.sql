@@ -108,6 +108,11 @@ insert into public.products (id, merchant_id, name, category, price, nutrition, 
   ('f0000000-0000-0000-0000-000000000002', 'e0000000-0000-0000-0000-00000000000e', '無糖綠茶', '飲料', 30, '{}', '{}', '[]'),
   ('f0000000-0000-0000-0000-000000000003', 'e0000000-0000-0000-0000-00000000000e', '堅果優格', '點心', 80, '{"calories":250}', '{堅果,奶}', '[]');
 select tests.ok((select count(*) = 3 from public.products), '店家可以建立自己的菜單');
+select tests.ok((select bool_and(nutrition_source = 'merchant') from public.products), '營養資料來源預設為「店家提供」');
+update public.products set nutrition_source = 'ai' where id = 'f0000000-0000-0000-0000-000000000003';
+select tests.ok((select nutrition_source = 'ai' from public.products where id = 'f0000000-0000-0000-0000-000000000003'), '店家可以標示營養資料為「AI 估算」');
+select tests.fails($$update public.products set nutrition_source = 'guess' where id = 'f0000000-0000-0000-0000-000000000003'$$,
+  'check constraint', '營養資料來源只能是店家提供或 AI 估算');
 select tests.fails($$insert into public.products (merchant_id, name, price, option_groups) values ('e0000000-0000-0000-0000-00000000000e', '壞規格', 100, '[{"id":"g","name":"x","type":"single","options":[]}]')$$,
   'check constraint', '沒有選項的規格群組會被擋下');
 select tests.fails($$insert into public.products (merchant_id, name, price, option_groups) values ('e0000000-0000-0000-0000-00000000000e', '重複選項', 100, '[{"id":"g","name":"x","type":"multiple","maxSelect":2,"options":[{"id":"a","name":"A"},{"id":"a","name":"B"}]}]')$$,
@@ -279,6 +284,47 @@ select tests.ok((select status = 'cancelled' and cancel_reason = '顧客取消�
   from public.update_order_status((select id from t_ids where order_number like '%-0002'), 'cancelled')), '店家接單前顧客可以取消');
 
 -- ---------------------------------------------------------------------
+-- 外送流程：接單設定製作時間 → 餐點完成 → 外送員出發 → 已送達 → 顧客確認收到
+-- ---------------------------------------------------------------------
+select tests.fails($$select public.place_order('e0000000-0000-0000-0000-00000000000e', '[{"productId":"f0000000-0000-0000-0000-000000000003","quantity":2,"optionIds":[]}]', 'delivery', '小陳', '0912345678', '台北市大安區復興南路一段1號', '', 'req-bad-location-01', null, null, 25.03, null)$$,
+  '定位資料不正確', '只有緯度沒有經度的定位會被擋下');
+select tests.fails($$select public.place_order('e0000000-0000-0000-0000-00000000000e', '[{"productId":"f0000000-0000-0000-0000-000000000003","quantity":2,"optionIds":[]}]', 'delivery', '小陳', '0912345678', '台北市大安區復興南路一段1號', '', 'req-bad-location-02', null, null, 95, 121.5)$$,
+  '定位資料不正確', '超出範圍的定位會被擋下');
+truncate t_result;
+insert into t_result select id, total, order_number from public.place_order('e0000000-0000-0000-0000-00000000000e',
+  '[{"productId":"f0000000-0000-0000-0000-000000000003","quantity":2,"optionIds":[]}]',
+  'delivery', '小陳', '0912345678', '台北市大安區復興南路一段1號', '', 'req-delivery-0002', 195, null, 25.0339687, 121.5644722);
+select tests.ok((select delivery_lat = 25.03397 and delivery_lng = 121.56447 from public.orders where id = (select id from t_result)),
+  '外送訂單記錄顧客定位（只保留到小數第 5 位）');
+
+select tests.act_as('b0000000-0000-0000-0000-000000000002');
+select tests.fails($$select public.update_order_status((select id from t_result), 'preparing', '', 3)$$,
+  '5 到 180 分鐘', '製作時間太短會被擋下');
+select tests.fails($$select public.update_order_status((select id from t_result), 'rejected', '測試', 15)$$,
+  '只有接單時', '只有接單時可以設定製作時間');
+select tests.ok((select status = 'preparing' and prep_minutes = 25 and estimated_ready_at = now() + interval '25 minutes'
+  from public.update_order_status((select id from t_result), 'preparing', '', 25)), '店家接單時設定製作 25 分鐘，預計完成時間跟著更新');
+select tests.ok((select status = 'ready' from public.update_order_status((select id from t_result), 'ready')), '外送餐點完成 → 等外送員取餐');
+select tests.fails($$select public.update_order_status((select id from t_result), 'completed')$$,
+  '無法改為這個狀態', '外送訂單不能跳過配送直接完成');
+select tests.act_as('c0000000-0000-0000-0000-000000000003');
+select tests.fails($$select public.update_order_status((select id from t_result), 'completed')$$,
+  '無法改為這個狀態', '餐點還沒出發，顧客不能確認收到');
+select tests.act_as('b0000000-0000-0000-0000-000000000002');
+select tests.ok((select status = 'delivering' and delivering_at is not null
+  from public.update_order_status((select id from t_result), 'delivering')), '外送員取餐出發 → 配送中');
+select tests.ok((select status = 'delivered' and delivered_at is not null and payment_status = 'paid' and completed_at is null
+  from public.update_order_status((select id from t_result), 'delivered')), '外送員送達並收款 → 已送達（等顧客確認）');
+select tests.act_as('d0000000-0000-0000-0000-000000000004');
+select tests.fails($$select public.update_order_status((select id from t_result), 'completed')$$,
+  '找不到這張訂單', '別人不能幫我確認收到');
+select tests.act_as('c0000000-0000-0000-0000-000000000003');
+select tests.ok((select status = 'completed' and completed_at is not null and jsonb_array_length(status_history) = 6
+  from public.update_order_status((select id from t_result), 'completed')), '顧客確認收到餐點 → 訂單完成（共 6 個狀態紀錄）');
+select tests.fails($$select public.update_order_status((select id from t_result), 'completed')$$,
+  '無法改為這個狀態', '已完成的訂單不能重複確認');
+
+-- ---------------------------------------------------------------------
 -- 營業狀態
 -- ---------------------------------------------------------------------
 select tests.act_as('b0000000-0000-0000-0000-000000000002');
@@ -318,7 +364,7 @@ select tests.ok((select status = 'pending' and review_note = '請補上完整地
 select tests.ok((select count(*) = 3 from public.products), '店家在審核期間看得到自己的菜單');
 select tests.act_as('c0000000-0000-0000-0000-000000000003');
 select tests.ok((select count(*) = 0 from public.products), '店家未核准時顧客看不到菜單');
-select tests.ok((select count(*) = 2 from public.orders), '顧客仍看得到自己過去的訂單');
+select tests.ok((select count(*) = 3 from public.orders), '顧客仍看得到自己過去的訂單');
 
 -- ---------------------------------------------------------------------
 -- 健康紀錄與 AI 額度
@@ -391,11 +437,12 @@ select tests.ok((select count(*) = 0 from public.food_logs), '飲食紀錄已清
 select tests.ok((select count(*) = 0 from public.weight_logs), '體重紀錄已清除');
 select tests.as_postgres();
 select tests.ok((select bool_and(contact_name = '已刪除的會員' and contact_phone = '' and note = '') from public.orders where customer_id = 'c0000000-0000-0000-0000-000000000003'), '過去訂單的姓名電話已清除');
-select tests.ok((select delivery_address = '（已刪除）' from public.orders where fulfillment = 'delivery' and customer_id = 'c0000000-0000-0000-0000-000000000003'), '過去訂單的外送地址已清除');
+select tests.ok((select bool_and(delivery_address = '（已刪除）') from public.orders where fulfillment = 'delivery' and customer_id = 'c0000000-0000-0000-0000-000000000003'), '過去訂單的外送地址已清除');
+select tests.ok((select bool_and(delivery_lat is null and delivery_lng is null) from public.orders where customer_id = 'c0000000-0000-0000-0000-000000000003'), '過去訂單的定位已清除');
 delete from auth.users where id = 'c0000000-0000-0000-0000-000000000003';
 select tests.ok((select count(*) = 0 from public.profiles where id = 'c0000000-0000-0000-0000-000000000003'), '刪除登入帳號後 profile 一併刪除');
 select tests.act_as('b0000000-0000-0000-0000-000000000002');
-select tests.ok((select count(*) = 3 and bool_and(customer_id is null) from public.orders), '店家仍保留訂單金額紀錄（已不含個資）');
+select tests.ok((select count(*) = 4 and bool_and(customer_id is null) from public.orders), '店家仍保留訂單金額紀錄（已不含個資）');
 
 -- ---------------------------------------------------------------------
 -- Storage 圖片權限

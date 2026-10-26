@@ -1,16 +1,18 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Banknote, Bike, Clock, MapPin, ShoppingBag } from 'lucide-react';
+import { Banknote, Bike, Clock, LocateFixed, MapPin, ShoppingBag, X } from 'lucide-react';
 import { ApiError, placeOrder, updateProfile } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
 import { clearCart } from '../../lib/cart';
 import { newId } from '../../lib/id';
 import { navigate } from '../../lib/router';
 import { Fulfillment } from '../../types';
+import { FAR_DISTANCE_KM, toCoordinates, travelMinutesFor } from '../../utils/delivery';
 import { isValidPhone } from '../../utils/format';
+import { Coordinates, distanceKm, formatDistance, requestLocation } from '../../utils/geo';
 import { slotLabel, upcomingSlots } from '../../utils/hours';
 import { errorMessage, showToast } from '../../utils/notifications';
 import { computeTotals, formatCurrency } from '../../utils/pricing';
-import { ErrorState, Field, PageHeader, PageLoading, Spinner, card, inputClass, primaryButton } from '../ui';
+import { ErrorState, Field, PageHeader, PageLoading, Spinner, card, inputClass, primaryButton, secondaryButton } from '../ui';
 import { storeState, STORE_STATE_LABEL } from './storeStatus';
 import { useCartStore } from './useCartStore';
 
@@ -29,6 +31,8 @@ export const CheckoutPage: React.FC = () => {
   const [timing, setTiming] = useState<'asap' | 'scheduled'>('asap');
   const [slot, setSlot] = useState('');
   const [now, setNow] = useState(() => new Date());
+  const [location, setLocation] = useState<Coordinates | null>(null);
+  const [locating, setLocating] = useState(false);
   const requestId = useRef(newId());
   const prefilled = useRef(false);
 
@@ -71,6 +75,20 @@ export const CheckoutPage: React.FC = () => {
   if (!merchant) return <ErrorState message="這間店家已經下架，請回購物車" onRetry={() => navigate('/cart')} />;
 
   const state = storeState(merchant);
+  const storeLocation = toCoordinates(merchant.lat, merchant.lng);
+  const locationKm = location && storeLocation ? distanceKm(storeLocation, location) : null;
+  const travelMinutes = travelMinutesFor(locationKm);
+
+  const attachLocation = async () => {
+    setLocating(true);
+    try {
+      setLocation(await requestLocation());
+    } catch (caught) {
+      showToast(errorMessage(caught), 'error');
+    } finally {
+      setLocating(false);
+    }
+  };
   const belowMinimum = merchant.minOrderAmount > totals.subtotal;
   const openNow = state === 'open';
   const canOrder = state !== 'paused' && (openNow || slots.length > 0);
@@ -112,6 +130,7 @@ export const CheckoutPage: React.FC = () => {
         clientRequestId: requestId.current,
         expectedTotal: totals.total,
         scheduledFor: effectiveTiming === 'scheduled' ? chosenSlot : null,
+        deliveryLocation: fulfillment === 'delivery' ? location : null,
       });
       if (remember && userId && profile) {
         const patch = {
@@ -163,7 +182,7 @@ export const CheckoutPage: React.FC = () => {
               <div className="mt-2 grid grid-cols-2 gap-3">
                 <button type="button" disabled={!openNow} onClick={() => setTiming('asap')} className={`rounded-xl border-2 px-4 py-3 text-left text-sm disabled:cursor-not-allowed disabled:opacity-50 ${effectiveTiming === 'asap' ? 'border-teal-500 bg-teal-50' : 'border-slate-100'}`}>
                   <span className="block font-bold">盡快</span>
-                  <span className="text-xs text-slate-500">{openNow ? `接單後約 ${merchant.prepMinutes} 分鐘${fulfillment === 'delivery' ? '＋配送' : ''}` : '店家休息中'}</span>
+                  <span className="text-xs text-slate-500">{openNow ? `接單後約 ${merchant.prepMinutes} 分鐘${fulfillment === 'delivery' ? `＋車程約 ${travelMinutes} 分鐘` : ''}` : '店家休息中'}</span>
                 </button>
                 <button type="button" disabled={slots.length === 0} onClick={() => setTiming('scheduled')} className={`rounded-xl border-2 px-4 py-3 text-left text-sm disabled:cursor-not-allowed disabled:opacity-50 ${effectiveTiming === 'scheduled' ? 'border-teal-500 bg-teal-50' : 'border-slate-100'}`}>
                   <span className="block font-bold">預約時間</span>
@@ -199,6 +218,22 @@ export const CheckoutPage: React.FC = () => {
               <Field label="外送地址" htmlFor="checkout-address" error={errors.address}>
                 <input id="checkout-address" value={address} onChange={(event) => setAddress(event.target.value)} maxLength={200} className={inputClass} autoComplete="street-address" placeholder="縣市、區、路名、門牌、樓層" />
               </Field>
+            )}
+            {fulfillment === 'delivery' && (
+              <div className="rounded-xl bg-slate-50 p-3 text-sm">
+                {location ? (
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="flex items-center gap-1.5 font-bold text-teal-800"><LocateFixed className="h-4 w-4" />已附上目前位置{locationKm !== null && `：距離店家約 ${formatDistance(locationKm)}，車程約 ${travelMinutes} 分鐘`}</p>
+                    <button type="button" onClick={() => setLocation(null)} className="flex items-center gap-1 text-xs text-slate-500 hover:underline"><X className="h-3.5 w-3.5" />不附定位</button>
+                  </div>
+                ) : (
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-slate-600">附上目前位置（選填），外送員可以直接導航，也能估算送達時間。</p>
+                    <button type="button" onClick={attachLocation} disabled={locating} className={secondaryButton}>{locating ? <Spinner className="h-4 w-4" /> : <LocateFixed className="h-4 w-4" />}使用目前位置</button>
+                  </div>
+                )}
+                {locationKm !== null && locationKm > FAR_DISTANCE_KM && <p className="mt-2 text-xs font-bold text-amber-700">距離店家超過 {FAR_DISTANCE_KM} 公里，請先確認店家是否外送到這裡。</p>}
+              </div>
             )}
             <Field label="給店家的備註（選填）" htmlFor="checkout-note" hint={`${note.length}/200`}>
               <textarea id="checkout-note" value={note} onChange={(event) => setNote(event.target.value)} maxLength={200} rows={2} className={inputClass} placeholder="例如：餐具不用、到了請打電話" />
@@ -248,7 +283,7 @@ export const CheckoutPage: React.FC = () => {
             <button onClick={submit} disabled={submitting || unavailable.size > 0 || !canOrder || belowMinimum} className={`${primaryButton} mt-4 w-full py-3.5 text-base`}>
               {submitting ? <><Spinner className="h-4 w-4" />送出中…</> : `送出訂單 · ${formatCurrency(totals.total)}`}
             </button>
-            <p className="mt-2 text-center text-xs text-slate-400">付款於{fulfillment === 'pickup' ? '取餐' : '送達'}時進行。送出訂單即表示同意<a href="#/terms" className="underline">服務條款</a>，你的姓名、電話{fulfillment === 'delivery' ? '、地址' : ''}會提供給店家。</p>
+            <p className="mt-2 text-center text-xs text-slate-400">付款於{fulfillment === 'pickup' ? '取餐' : '送達'}時進行。送出訂單即表示同意<a href="#/terms" className="underline">服務條款</a>，你的姓名、電話{fulfillment === 'delivery' ? `、地址${location ? '與定位' : ''}` : ''}會提供給店家。</p>
           </section>
         </aside>
       </div>

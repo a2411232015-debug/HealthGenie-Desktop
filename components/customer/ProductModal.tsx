@@ -97,7 +97,11 @@ export const ProductModal: React.FC<{ product: Product; merchant: Merchant; onCl
         )}
 
         <div className="mt-4">
-          <NutritionGrid nutrition={line.unitNutrition} title="營養標示（依目前選擇計算）" />
+          <NutritionGrid
+            nutrition={line.unitNutrition}
+            title="營養標示（依目前選擇計算）"
+            note={product.nutrition.calories === undefined ? undefined : product.nutritionSource === 'ai' ? '資料來源：AI 依餐點名稱與照片估算，經店家確認，僅供參考。' : '資料來源：店家提供（依食譜計算、檢驗報告或營養師提供）。'}
+          />
         </div>
 
         <div className="mt-5 space-y-5">

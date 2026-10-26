@@ -17,6 +17,7 @@ import { formatCurrency } from '../../utils/pricing';
 import { OrderStatusBadge } from '../OrderStatusBadge';
 import { PrintTicket } from './PrintTicket';
 import { EmptyState, ErrorState, PageLoading, ReasonDialog, Spinner, card, primaryButton, secondaryButton } from '../ui';
+import { PrepTimeDialog } from './PrepTimeDialog';
 
 type Tab = 'pending' | 'preparing' | 'ready' | 'delivering' | 'done';
 const ALERT_KEY = 'healthgenie_order_alerts';
@@ -25,7 +26,7 @@ const TABS: { key: Tab; label: string }[] = [
   { key: 'pending', label: '新訂單' },
   { key: 'preparing', label: '製作中' },
   { key: 'ready', label: '待取餐／待配送' },
-  { key: 'delivering', label: '配送中' },
+  { key: 'delivering', label: '配送中／待確認' },
   { key: 'done', label: '今日已結束' },
 ];
 
@@ -34,20 +35,26 @@ interface Action {
   label: string;
   primary?: boolean;
   needsReason?: boolean;
+  /** 接單時先選製作時間 */
+  needsPrepTime?: boolean;
+  /** 一般（非危險）的次要按鈕 */
+  neutral?: boolean;
 }
 
 const actionsFor = (order: Order): Action[] => {
   switch (order.status) {
     case 'pending':
-      return [{ status: 'preparing', label: '接單，開始製作', primary: true }, { status: 'rejected', label: '無法接單', needsReason: true }];
+      return [{ status: 'preparing', label: '接單，設定製作時間', primary: true, needsPrepTime: true }, { status: 'rejected', label: '無法接單', needsReason: true }];
     case 'preparing':
       return [{ status: 'ready', label: order.fulfillment === 'pickup' ? '餐點完成，通知取餐' : '餐點完成', primary: true }, { status: 'cancelled', label: '取消訂單', needsReason: true }];
     case 'ready':
       return order.fulfillment === 'delivery'
-        ? [{ status: 'delivering', label: '出發配送', primary: true }, { status: 'cancelled', label: '取消訂單', needsReason: true }]
+        ? [{ status: 'delivering', label: '外送員取餐出發', primary: true }, { status: 'cancelled', label: '取消訂單', needsReason: true }]
         : [{ status: 'completed', label: `顧客已取餐並付款 ${formatCurrency(order.total)}`, primary: true }, { status: 'cancelled', label: '顧客未取餐', needsReason: true }];
     case 'delivering':
-      return [{ status: 'completed', label: `已送達並收款 ${formatCurrency(order.total)}`, primary: true }];
+      return [{ status: 'delivered', label: `已送達並收款 ${formatCurrency(order.total)}`, primary: true }];
+    case 'delivered':
+      return [{ status: 'completed', label: '顧客未按確認，直接結單', neutral: true }];
     default:
       return [];
   }
@@ -60,6 +67,8 @@ const OrderTicket: React.FC<{ order: Order; busy: boolean; onAction: (order: Ord
         <p className="text-3xl font-black leading-none text-slate-900">#{order.orderNumber.split('-')[1] || order.orderNumber}</p>
         <p className="mt-1 text-xs text-slate-400">{formatTime(order.createdAt)} 下單 · {minutesAgo(order.createdAt)}</p>
         {order.scheduledFor && <p className="mt-2 inline-block rounded-lg bg-indigo-600 px-2.5 py-1 text-sm font-black text-white">預約 {slotLabel(new Date(order.scheduledFor))}</p>}
+        {order.status === 'preparing' && order.estimatedReadyAt && <p className="mt-2 text-sm font-bold text-blue-700">預計 {formatTime(order.estimatedReadyAt)} 完成{order.prepMinutes ? `（製作 ${order.prepMinutes} 分鐘）` : ''}</p>}
+        {order.status === 'delivered' && <p className="mt-2 text-sm font-bold text-cyan-800">{formatTime(order.deliveredAt)} 已送達，等顧客確認</p>}
       </div>
       <div className="flex flex-col items-end gap-1">
         <div className="flex items-center gap-1">
@@ -93,7 +102,7 @@ const OrderTicket: React.FC<{ order: Order; busy: boolean; onAction: (order: Ord
     {actionsFor(order).length > 0 && (
       <div className="mt-4 flex flex-col gap-2">
         {actionsFor(order).map((action) => (
-          <button key={action.status} onClick={() => onAction(order, action)} disabled={busy} className={action.primary ? `${primaryButton} py-3` : `${secondaryButton} text-red-600`}>
+          <button key={action.status} onClick={() => onAction(order, action)} disabled={busy} className={action.primary ? `${primaryButton} py-3` : action.neutral ? secondaryButton : `${secondaryButton} text-red-600`}>
             {busy && action.primary && <Spinner className="h-4 w-4" />}{action.label}
           </button>
         ))}
@@ -113,6 +122,7 @@ export const MerchantOrders: React.FC<{ merchant: Merchant }> = ({ merchant }) =
   const [tab, setTab] = useState<Tab>('pending');
   const [busyId, setBusyId] = useState('');
   const [reasonFor, setReasonFor] = useState<{ order: Order; action: Action } | null>(null);
+  const [prepFor, setPrepFor] = useState<Order | null>(null);
   const [printing, setPrinting] = useState<{ order: Order; job: number } | null>(null);
   const finishPrinting = useCallback(() => setPrinting(null), []);
   const [alertsOn, setAlertsOn] = useState(() => {
@@ -179,15 +189,16 @@ export const MerchantOrders: React.FC<{ merchant: Merchant }> = ({ merchant }) =
     return () => document.removeEventListener('click', unlock);
   }, [alertsOn]);
 
-  const change = async (order: Order, status: OrderStatus, reason = '') => {
+  const change = async (order: Order, status: OrderStatus, reason = '', prepMinutes?: number) => {
     setBusyId(order.id);
     try {
-      await updateOrderStatus(order.id, status, reason);
+      await updateOrderStatus(order.id, status, reason, prepMinutes);
       await query.reload(true);
       showToast({
-        preparing: '已接單，開始製作',
-        ready: order.fulfillment === 'pickup' ? '已通知顧客取餐' : '餐點完成',
-        delivering: '已出發配送',
+        preparing: prepMinutes ? `已接單，約 ${prepMinutes} 分鐘完成` : '已接單，開始製作',
+        ready: order.fulfillment === 'pickup' ? '已通知顧客取餐' : '餐點完成，等外送員取餐',
+        delivering: '外送員已出發',
+        delivered: '已送達，等顧客確認收到',
         completed: '訂單完成',
         rejected: '已拒絕訂單',
         cancelled: '訂單已取消',
@@ -199,6 +210,7 @@ export const MerchantOrders: React.FC<{ merchant: Merchant }> = ({ merchant }) =
     } finally {
       setBusyId('');
       setReasonFor(null);
+      setPrepFor(null);
     }
   };
 
@@ -209,7 +221,7 @@ export const MerchantOrders: React.FC<{ merchant: Merchant }> = ({ merchant }) =
     pending,
     preparing: (query.data?.active || []).filter((order) => order.status === 'preparing'),
     ready: (query.data?.active || []).filter((order) => order.status === 'ready'),
-    delivering: (query.data?.active || []).filter((order) => order.status === 'delivering'),
+    delivering: (query.data?.active || []).filter((order) => order.status === 'delivering' || order.status === 'delivered'),
     done: query.data?.done || [],
   };
   const visibleTabs = TABS.filter((entry) => entry.key !== 'delivering' || merchant.deliveryEnabled || lists.delivering.length > 0);
@@ -239,11 +251,24 @@ export const MerchantOrders: React.FC<{ merchant: Merchant }> = ({ merchant }) =
               key={order.id}
               order={order}
               busy={busyId === order.id}
-              onAction={(target, action) => (action.needsReason ? setReasonFor({ order: target, action }) : void change(target, action.status))}
+              onAction={(target, action) => {
+                if (action.needsReason) setReasonFor({ order: target, action });
+                else if (action.needsPrepTime) setPrepFor(target);
+                else void change(target, action.status);
+              }}
               onPrint={(target) => setPrinting({ order: target, job: Date.now() })}
             />
           ))}
         </div>
+      )}
+      {prepFor && (
+        <PrepTimeDialog
+          order={prepFor}
+          defaultMinutes={merchant.prepMinutes}
+          busy={busyId === prepFor.id}
+          onCancel={() => setPrepFor(null)}
+          onConfirm={(minutes) => void change(prepFor, 'preparing', '', minutes)}
+        />
       )}
       {printing && <PrintTicket key={printing.job} order={printing.order} onDone={finishPrinting} />}
       {reasonFor && (
