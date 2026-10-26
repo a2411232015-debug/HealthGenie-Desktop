@@ -9,7 +9,7 @@ import { EmptyState, ErrorState, PageLoading, card } from '../ui';
 const RANGES = [7, 30] as const;
 
 export const MerchantStats: React.FC<{ merchant: Merchant }> = ({ merchant }) => {
-  const [days, setDays] = useState<(typeof RANGES)[number]>(7);
+  const [days, setDays] = useState<(typeof RANGES)[number]>(30);
   const since = useMemo(() => startOfTaipeiDay(new Date(Date.now() - (days - 1) * 86400000)), [days]);
   const query = useQuery(() => fetchMerchantOrders(merchant.id, since), [merchant.id, since]);
 
