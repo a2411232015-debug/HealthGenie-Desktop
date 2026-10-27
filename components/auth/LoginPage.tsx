@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Activity, Mail } from 'lucide-react';
 import { useAuth } from '../../lib/auth';
 import { navigate, routeQuery } from '../../lib/router';
-import { appBaseUrl, supabase } from '../../lib/supabase';
+import { appBaseUrl, fetchEnabledProviders, supabase } from '../../lib/supabase';
 import { errorMessage, showToast } from '../../utils/notifications';
 import { Field, inputClass, primaryButton, secondaryButton, Spinner } from '../ui';
 
@@ -38,7 +38,18 @@ export const LoginPage: React.FC = () => {
   const [error, setError] = useState('');
   const [sentTo, setSentTo] = useState('');
   const [agreed, setAgreed] = useState(false);
-  const canUseGoogle = window.location.protocol.startsWith('http');
+  const [googleEnabled, setGoogleEnabled] = useState(false);
+  // 桌面版（file://）無法完成 Google 登入；平台沒開 Google 登入時也不顯示按鈕
+  const canUseGoogle = window.location.protocol.startsWith('http') && googleEnabled;
+
+  useEffect(() => {
+    if (!window.location.protocol.startsWith('http')) return;
+    let active = true;
+    fetchEnabledProviders().then((providers) => {
+      if (active) setGoogleEnabled(providers.google === true);
+    });
+    return () => { active = false; };
+  }, []);
 
   useEffect(() => {
     if (session) navigate(safeNext(), { replace: true });

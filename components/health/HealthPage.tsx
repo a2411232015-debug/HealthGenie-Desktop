@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { BookPlus, Flame, HeartPulse, Plus, Scale, Trash2, UtensilsCrossed } from 'lucide-react';
+import { BarChart3, BookPlus, Flame, HeartPulse, Info, Plus, Scale, Trash2, UtensilsCrossed } from 'lucide-react';
 import { addFoodLog, deleteFoodLog, fetchFoodLogs, fetchLoggedOrderIds, fetchMyOrders, fetchWeightLogs, saveWeight } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
 import { notifyFoodLogsUpdated } from '../../lib/health';
@@ -14,6 +14,19 @@ import { EmptyState, ErrorState, PageHeader, PageLoading, Spinner, card, inputCl
 import { FoodLogModal } from './FoodLogModal';
 
 const SOURCE_LABEL: Record<FoodLog['source'], string> = { manual: '手動', order: '訂單', photo: 'AI 照片' };
+
+/** 近 7 天看最近的飲食習慣；近 30 天看熱量與體重的長期趨勢（預設） */
+const RANGES = [7, 30] as const;
+type Range = (typeof RANGES)[number];
+const DAY_MS = 86400000;
+
+const Stat: React.FC<{ label: string; value: string; hint?: string; tone?: string }> = ({ label, value, hint, tone = 'text-slate-900' }) => (
+  <div className="rounded-xl bg-slate-50 px-3 py-2.5">
+    <p className="text-xs text-slate-500">{label}</p>
+    <p className={`mt-0.5 text-xl font-black ${tone}`}>{value}</p>
+    {hint && <p className="text-[11px] text-slate-400">{hint}</p>}
+  </div>
+);
 
 const Progress: React.FC<{ label: string; value: number; target: number; unit: string; color: string }> = ({ label, value, target, unit, color }) => {
   const percent = target > 0 ? Math.min(100, Math.round((value / target) * 100)) : 0;
@@ -30,15 +43,16 @@ const orderTotals = (order: Order) => order.items.reduce((sum, item) => addNutri
 export const HealthPage: React.FC = () => {
   const { userId, profile } = useAuth();
   const targets = calculateHealthTargets(profile?.health);
-  const weekStart = useMemo(() => startOfTaipeiDay(new Date(Date.now() - 6 * 86400000)), []);
+  const [range, setRange] = useState<Range>(30);
+  const since = useMemo(() => startOfTaipeiDay(new Date(Date.now() - (RANGES[RANGES.length - 1] - 1) * DAY_MS)), []);
   const query = useQuery(async () => {
-    const [logs, weights, orders] = await Promise.all([fetchFoodLogs(weekStart), fetchWeightLogs(), fetchMyOrders(userId || '')]);
+    const [logs, weights, orders] = await Promise.all([fetchFoodLogs(since), fetchWeightLogs(), fetchMyOrders(userId || '')]);
     const recentCompleted = orders.filter((order) => order.status === 'completed' && order.completedAt
       && Date.now() - new Date(order.completedAt).getTime() < 36 * 3600000
       && order.items.some((item) => item.unitNutrition));
     const logged = await fetchLoggedOrderIds(recentCompleted.map((order) => order.id));
     return { logs, weights, unloggedOrders: recentCompleted.filter((order) => !logged.has(order.id)).slice(0, 3) };
-  }, [userId, weekStart], Boolean(userId));
+  }, [userId, since], Boolean(userId));
   const [showLog, setShowLog] = useState(false);
   const [weightInput, setWeightInput] = useState('');
   const [savingWeight, setSavingWeight] = useState(false);
@@ -53,12 +67,17 @@ export const HealthPage: React.FC = () => {
     carbs: sum.carbs + (log.carbs || 0),
   }), { calories: 0, protein: 0, fat: 0, carbs: 0 });
 
-  const week = useMemo(() => Array.from({ length: 7 }, (_, index) => {
-    const date = taipeiDate(new Date(Date.now() - (6 - index) * 86400000));
-    const total = (query.data?.logs || []).filter((log) => taipeiDate(new Date(log.eatenAt)) === date).reduce((sum, log) => sum + log.calories, 0);
-    return { date, total };
-  }), [query.data]);
-  const weekMax = Math.max(targets?.dailyCalories || 0, ...week.map((day) => day.total), 1);
+  const days = useMemo(() => Array.from({ length: range }, (_, index) => {
+    const date = taipeiDate(new Date(Date.now() - (range - 1 - index) * DAY_MS));
+    const dayLogs = (query.data?.logs || []).filter((log) => taipeiDate(new Date(log.eatenAt)) === date);
+    return { date, total: dayLogs.reduce((sum, log) => sum + log.calories, 0), logged: dayLogs.length > 0 };
+  }), [query.data, range]);
+  const chartMax = Math.max(targets?.dailyCalories || 0, ...days.map((day) => day.total), 1);
+  const loggedDays = days.filter((day) => day.logged);
+  const averageCalories = loggedDays.length > 0 ? Math.round(loggedDays.reduce((sum, day) => sum + day.total, 0) / loggedDays.length) : null;
+  const daysWithinTarget = targets ? loggedDays.filter((day) => day.total <= targets.dailyCalories).length : null;
+  const rangeWeights = (query.data?.weights || []).filter((entry) => entry.date >= days[0].date);
+  const weightChange = rangeWeights.length >= 2 ? Math.round((rangeWeights[rangeWeights.length - 1].weight - rangeWeights[0].weight) * 10) / 10 : null;
 
   const removeLog = async (log: FoodLog) => {
     setBusyId(log.id);
@@ -192,18 +211,48 @@ export const HealthPage: React.FC = () => {
             </ul>
           )}
 
-          <h3 className="mt-6 text-sm font-bold text-slate-500">最近 7 天</h3>
-          <div className="mt-3 flex h-32 items-end gap-2" role="img" aria-label="最近 7 天熱量長條圖">
-            {week.map((day) => (
-              <div key={day.date} className="flex flex-1 flex-col items-center gap-1">
-                <span className="text-[10px] text-slate-400">{day.total || ''}</span>
-                <div className={`w-full rounded-t-md ${targets && day.total > targets.dailyCalories ? 'bg-red-300' : 'bg-teal-400'}`} style={{ height: `${Math.max(2, (day.total / weekMax) * 96)}px` }} />
-                <span className="text-[10px] text-slate-500">{Number(day.date.slice(5, 7))}/{Number(day.date.slice(8, 10))}</span>
+        </section>
+      </div>
+
+      <section className={`${card} p-5`}>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="flex items-center gap-2 font-black text-slate-900"><BarChart3 className="h-5 w-5 text-teal-600" />飲食趨勢</h2>
+          <div className="flex gap-1 rounded-xl bg-slate-100 p-1" role="tablist" aria-label="統計區間">
+            {RANGES.map((value) => (
+              <button key={value} role="tab" aria-selected={range === value} onClick={() => setRange(value)} className={`rounded-lg px-3 py-1.5 text-sm font-bold ${range === value ? 'bg-white text-teal-700 shadow-sm' : 'text-slate-500'}`}>近 {value} 天</button>
+            ))}
+          </div>
+        </div>
+        <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <Stat label="平均每日熱量" value={averageCalories === null ? '—' : `${averageCalories} kcal`} hint="只計算有紀錄的日子" />
+          <Stat label="有紀錄的天數" value={`${loggedDays.length} / ${range} 天`} hint="持續記錄才看得出趨勢" />
+          <Stat label="沒有超過目標" value={daysWithinTarget === null ? '—' : `${daysWithinTarget} 天`} hint={targets ? `目標 ${targets.dailyCalories} kcal／天` : '填寫健康資料後顯示'} tone="text-teal-700" />
+          <Stat label="體重變化" value={weightChange === null ? '—' : `${weightChange > 0 ? '+' : ''}${weightChange} kg`} hint={weightChange === null ? '區間內需有兩筆體重' : `${rangeWeights[0].date.slice(5).replace('-', '/')} 起`} tone={weightChange !== null && weightChange <= 0 ? 'text-teal-700' : 'text-slate-900'} />
+        </div>
+        <div className="relative mt-5">
+          {targets && (
+            <div className="pointer-events-none absolute inset-x-0 border-t-2 border-dashed border-orange-300" style={{ bottom: `${16 + (targets.dailyCalories / chartMax) * 120}px` }}>
+              <span className="absolute -top-5 right-0 text-[10px] font-bold text-orange-500">目標 {targets.dailyCalories}</span>
+            </div>
+          )}
+          <div className={`flex h-[160px] items-end ${range > 7 ? 'gap-[3px]' : 'gap-2'}`} role="img" aria-label={`近 ${range} 天每日熱量長條圖`}>
+            {days.map((day, index) => (
+              <div key={day.date} className="flex min-w-0 flex-1 flex-col items-center gap-1" title={`${day.date}：${day.total} kcal`}>
+                {range === 7 && <span className="text-[10px] text-slate-400">{day.total || ''}</span>}
+                <div className={`w-full rounded-t-sm ${!day.logged ? 'bg-slate-100' : targets && day.total > targets.dailyCalories ? 'bg-red-300' : 'bg-teal-400'}`} style={{ height: `${Math.max(2, (day.total / chartMax) * 120)}px` }} />
+                <span className="h-3 whitespace-nowrap text-[10px] leading-3 text-slate-500">{range === 7 || index % 5 === 4 || index === 0 ? `${Number(day.date.slice(5, 7))}/${Number(day.date.slice(8, 10))}` : ''}</span>
               </div>
             ))}
           </div>
-        </section>
-      </div>
+        </div>
+        <p className="mt-4 flex gap-2 rounded-xl bg-teal-50 px-3 py-2.5 text-xs leading-relaxed text-teal-900">
+          <Info className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>
+            {'為什麼預設看 30 天？衛福部建議每天少吃約 500 大卡，大約每週減 0.5–1 公斤；體重每天也會因水分自然起伏，只看 7 天不容易看出效果。'}
+            {'所以用「近 7 天」檢查最近的飲食習慣，「近 30 天」看熱量和體重的長期趨勢。研究也發現持續記錄飲食與體重，和減重成效有關（Burke 等人，2011 系統性回顧）。'}
+          </span>
+        </p>
+      </section>
 
       <section className={`${card} p-5`}>
         <div className="flex flex-wrap items-center justify-between gap-3">

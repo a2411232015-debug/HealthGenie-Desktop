@@ -115,6 +115,7 @@ export const toProduct = (row: Row): Product => ({
   price: num(row.price),
   imageUrl: str(row.image_url),
   nutrition: (row.nutrition && typeof row.nutrition === 'object' ? row.nutrition : {}) as Product['nutrition'],
+  nutritionSource: row.nutrition_source === 'ai' ? 'ai' : 'merchant',
   allergens: arr<string>(row.allergens),
   optionGroups: arr(row.option_groups),
   available: row.available !== false,
@@ -130,6 +131,7 @@ const fromProductInput = (input: ProductInput): Row => ({
   nutrition: Object.fromEntries(
     Object.entries(input.nutrition).filter(([, value]) => value !== undefined && value !== null && Number.isFinite(Number(value))),
   ),
+  nutrition_source: input.nutritionSource,
   allergens: input.allergens,
   option_groups: input.optionGroups,
   available: input.available,
@@ -165,6 +167,11 @@ export const toOrder = (row: Row): Order => ({
   cancelReason: str(row.cancel_reason),
   createdAt: str(row.created_at),
   completedAt: row.completed_at ? str(row.completed_at) : null,
+  deliveryLat: numOrNull(row.delivery_lat),
+  deliveryLng: numOrNull(row.delivery_lng),
+  prepMinutes: numOrNull(row.prep_minutes),
+  deliveringAt: row.delivering_at ? str(row.delivering_at) : null,
+  deliveredAt: row.delivered_at ? str(row.delivered_at) : null,
 });
 
 const toFoodLog = (row: Row): FoodLog => ({
@@ -275,6 +282,8 @@ export interface PlaceOrderInput {
   expectedTotal: number;
   /** ISO 時間；null 代表盡快 */
   scheduledFor: string | null;
+  /** 外送時顧客提供的定位（選填） */
+  deliveryLocation?: { lat: number; lng: number } | null;
 }
 
 export const placeOrder = async (input: PlaceOrderInput): Promise<Order> => {
@@ -289,15 +298,17 @@ export const placeOrder = async (input: PlaceOrderInput): Promise<Order> => {
     p_client_request_id: input.clientRequestId,
     p_expected_total: input.expectedTotal,
     p_scheduled_for: input.scheduledFor,
+    ...(input.deliveryLocation ? { p_delivery_lat: input.deliveryLocation.lat, p_delivery_lng: input.deliveryLocation.lng } : {}),
   }));
   return toOrder(data as Row);
 };
 
-export const updateOrderStatus = async (orderId: string, status: OrderStatus, reason = ''): Promise<Order> => {
+export const updateOrderStatus = async (orderId: string, status: OrderStatus, reason = '', prepMinutes?: number): Promise<Order> => {
   const data = check(await supabase().rpc('update_order_status', {
     p_order_id: orderId,
     p_status: status,
     p_reason: reason,
+    ...(prepMinutes ? { p_prep_minutes: prepMinutes } : {}),
   }));
   return toOrder(data as Row);
 };
@@ -321,7 +332,7 @@ export const fetchMerchantOrders = async (merchantId: string, sinceIso: string):
 
 export const fetchActiveMerchantOrders = async (merchantId: string): Promise<Order[]> => {
   const data = check(await supabase().from('orders').select('*').eq('merchant_id', merchantId)
-    .in('status', ['pending', 'preparing', 'ready', 'delivering']).order('created_at', { ascending: true }).limit(200));
+    .in('status', ['pending', 'preparing', 'ready', 'delivering', 'delivered']).order('created_at', { ascending: true }).limit(200));
   return (data || []).map(toOrder);
 };
 
@@ -342,7 +353,7 @@ export const subscribeToOrders = (filter: { merchantId?: string; customerId?: st
 
 export const fetchFoodLogs = async (sinceIso: string): Promise<FoodLog[]> => {
   const data = check(await supabase().from('food_logs').select('*').gte('eaten_at', sinceIso)
-    .order('eaten_at', { ascending: false }).limit(200));
+    .order('eaten_at', { ascending: false }).limit(600));
   return (data || []).map(toFoodLog);
 };
 

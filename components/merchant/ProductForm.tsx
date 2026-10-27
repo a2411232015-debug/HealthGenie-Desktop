@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { ImagePlus, Sparkles } from 'lucide-react';
 import { estimateDishNutrition, uploadProductImage } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
-import { ALLERGENS, NutritionKey, OptionGroup, Product, ProductInput } from '../../types';
+import { ALLERGENS, NutritionKey, NutritionSource, OptionGroup, Product, ProductInput } from '../../types';
 import { resizeImage } from '../../utils/image';
 import { errorMessage, showToast } from '../../utils/notifications';
 import { OptionGroupEditor } from '../OptionGroupEditor';
@@ -54,6 +54,7 @@ export const ProductForm: React.FC<{
   const [imageUrl, setImageUrl] = useState(product?.imageUrl || '');
   const [imageBlob, setImageBlob] = useState<Blob | null>(null);
   const [nutrition, setNutrition] = useState<NutritionForm>(() => toNutritionForm(product));
+  const [nutritionSource, setNutritionSource] = useState<NutritionSource>(product?.nutritionSource || 'merchant');
   const [allergens, setAllergens] = useState<string[]>(product?.allergens || []);
   const [groups, setGroups] = useState<OptionGroup[]>(() => JSON.parse(JSON.stringify(product?.optionGroups || [])));
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -92,6 +93,7 @@ export const ProductForm: React.FC<{
         sodium: result.sodium === undefined ? nutrition.sodium : String(Math.round(result.sodium)),
         sugar: nutrition.sugar,
       });
+      setNutritionSource('ai');
       showToast('AI 已估算營養素，請依實際食譜確認後再儲存', 'info');
     } catch (caught) {
       showToast(errorMessage(caught, 'AI 估算失敗'), 'error');
@@ -127,6 +129,7 @@ export const ProductForm: React.FC<{
         description: description.trim(),
         imageUrl,
         nutrition: Object.fromEntries(NUTRITION_FIELDS.filter(([key]) => nutrition[key].trim() !== '').map(([key]) => [key, Number(nutrition[key])])),
+        nutritionSource,
         allergens,
         optionGroups: groups.map((group) => ({
           ...group,
@@ -205,7 +208,7 @@ export const ProductForm: React.FC<{
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
               <h3 className="font-bold text-slate-800">營養標示（一份）</h3>
-              <p className="text-xs text-slate-500">健康平台的重點！填寫後顧客可以依熱量篩選。</p>
+              <p className="text-xs text-slate-500">健康平台的重點！填寫後顧客可以依熱量篩選，也會用在顧客的飲食紀錄。</p>
             </div>
             <button type="button" onClick={estimate} disabled={busy !== ''} className={`${secondaryButton} border-purple-200 text-purple-700`}>
               {busy === 'ai' ? <Spinner className="h-4 w-4" /> : <Sparkles className="h-4 w-4" />}AI 幫我估算
@@ -218,6 +221,20 @@ export const ProductForm: React.FC<{
               </Field>
             ))}
           </div>
+          <fieldset className="mt-4">
+            <legend className="text-xs font-bold text-slate-600">資料來源（會顯示給顧客看）</legend>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {([
+                ['merchant', '店家提供（食譜計算、檢驗報告或營養師）'],
+                ['ai', 'AI 估算，店家已確認'],
+              ] as [NutritionSource, string][]).map(([value, label]) => (
+                <label key={value} className={`flex cursor-pointer items-center gap-2 rounded-xl border px-3 py-2 text-sm ${nutritionSource === value ? 'border-teal-500 bg-white font-bold text-teal-800' : 'border-slate-200 text-slate-600'}`}>
+                  <input type="radio" name="nutrition-source" value={value} checked={nutritionSource === value} onChange={() => setNutritionSource(value)} className="accent-teal-600" />
+                  {label}
+                </label>
+              ))}
+            </div>
+          </fieldset>
         </section>
 
         <div>

@@ -7,7 +7,7 @@ import { Merchant, Product } from '../../types';
 import { describeDay, WEEKDAY_LABELS, taipeiClock } from '../../utils/hours';
 import { formatNumber } from '../../utils/format';
 import { formatCurrency } from '../../utils/pricing';
-import { Badge, EmptyState, ErrorState, PageLoading } from '../ui';
+import { Badge, EmptyState, ErrorState, hideBrokenImage, PageLoading } from '../ui';
 import { ProductModal } from './ProductModal';
 import { orderingMode, STORE_STATE_LABEL, storeState } from './storeStatus';
 
@@ -15,7 +15,7 @@ export const ProductCard: React.FC<{ product: Product; subtitle?: string; extra?
   <button type="button" onClick={onOpen} className={`flex w-full gap-4 rounded-2xl border border-slate-100 bg-white p-3 text-left shadow-sm transition ${product.available ? 'hover:border-teal-200 hover:shadow-md' : 'opacity-60'}`}>
     <div className="relative h-24 w-24 shrink-0 overflow-hidden rounded-xl bg-slate-100">
       {product.imageUrl
-        ? <img src={product.imageUrl} alt="" className={`h-full w-full object-cover ${product.available ? '' : 'grayscale'}`} loading="lazy" />
+        ? <img src={product.imageUrl} alt="" className={`h-full w-full object-cover ${product.available ? '' : 'grayscale'}`} loading="lazy" onError={hideBrokenImage} />
         : <div className="flex h-full items-center justify-center text-slate-300"><UtensilsCrossed className="h-8 w-8" /></div>}
       {!product.available && <span className="absolute inset-0 flex items-center justify-center bg-slate-900/50 text-xs font-bold text-white">已售完</span>}
     </div>
@@ -40,7 +40,7 @@ const MerchantHeader: React.FC<{ merchant: Merchant }> = ({ merchant }) => {
     <section className="overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-sm">
       <div className="relative h-40 bg-gradient-to-br from-teal-100 to-emerald-50 md:h-52">
         {merchant.coverImageUrl
-          ? <img src={merchant.coverImageUrl} alt="" className="h-full w-full object-cover" />
+          ? <img src={merchant.coverImageUrl} alt="" className="h-full w-full object-cover" onError={hideBrokenImage} />
           : <div className="flex h-full items-center justify-center text-teal-300"><Store className="h-16 w-16" /></div>}
       </div>
       <div className="p-5 md:p-6">

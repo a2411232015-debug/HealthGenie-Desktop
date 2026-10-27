@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { BarChart3, ClipboardList, Settings, Store, UtensilsCrossed } from 'lucide-react';
+import { BarChart3, Bike, ClipboardList, Settings, Store, UtensilsCrossed } from 'lucide-react';
 import { applyAsMerchant, updateMerchant } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
 import { navigate } from '../../lib/router';
 import { useAutoRefresh } from '../../lib/useQuery';
 import { errorMessage, showToast } from '../../utils/notifications';
 import { Badge, PageHeader, PageLoading } from '../ui';
+import { CourierView } from './CourierView';
 import { MenuManager } from './MenuManager';
 import { MerchantOrders } from './MerchantOrders';
 import { MerchantStats } from './MerchantStats';
@@ -13,6 +14,7 @@ import { emptyMerchantInput, merchantToInput, StoreSettingsForm } from './StoreS
 
 const TABS = [
   { key: 'orders', label: '接單', icon: <ClipboardList className="h-4 w-4" /> },
+  { key: 'delivery', label: '外送員', icon: <Bike className="h-4 w-4" /> },
   { key: 'menu', label: '菜單', icon: <UtensilsCrossed className="h-4 w-4" /> },
   { key: 'settings', label: '店家設定', icon: <Settings className="h-4 w-4" /> },
   { key: 'stats', label: '營運數據', icon: <BarChart3 className="h-4 w-4" /> },
@@ -94,7 +96,7 @@ export const MerchantPage: React.FC<{ tab: string }> = ({ tab }) => {
       {merchant.status === 'suspended' && <p className="mb-5 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">店家已被平台暫停{merchant.reviewNote ? `：${merchant.reviewNote}` : ''}，顧客目前看不到你的店。請聯絡平台管理員。</p>}
 
       <nav className="mb-6 flex gap-1 overflow-x-auto border-b border-slate-200" aria-label="商家後台">
-        {TABS.map((entry) => (
+        {TABS.filter((entry) => entry.key !== 'delivery' || merchant.deliveryEnabled).map((entry) => (
           <a key={entry.key} href={`#/merchant/${entry.key}`} className={`-mb-px flex items-center gap-1.5 whitespace-nowrap border-b-2 px-4 py-3 text-sm font-bold ${tab === entry.key ? 'border-teal-600 text-teal-700' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>
             {entry.icon}{entry.label}
           </a>
@@ -102,6 +104,7 @@ export const MerchantPage: React.FC<{ tab: string }> = ({ tab }) => {
       </nav>
 
       {tab === 'orders' && <MerchantOrders merchant={merchant} />}
+      {tab === 'delivery' && <CourierView merchant={merchant} />}
       {tab === 'menu' && <MenuManager merchant={merchant} />}
       {tab === 'stats' && <MerchantStats merchant={merchant} />}
       {tab === 'settings' && (

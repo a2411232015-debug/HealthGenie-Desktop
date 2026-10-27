@@ -115,11 +115,15 @@ export interface Product {
   imageUrl: string;
   /** 未提供的營養素不會出現在物件裡 */
   nutrition: Partial<Nutrition>;
+  /** 營養資料來源：店家提供，或 AI 估算後由店家確認 */
+  nutritionSource: NutritionSource;
   allergens: string[];
   optionGroups: OptionGroup[];
   available: boolean;
   sortOrder: number;
 }
+
+export type NutritionSource = 'merchant' | 'ai';
 
 export type ProductInput = Omit<Product, 'id' | 'merchantId'>;
 
@@ -162,6 +166,7 @@ export type OrderStatus =
   | 'preparing'
   | 'ready'
   | 'delivering'
+  | 'delivered'
   | 'completed'
   | 'cancelled'
   | 'rejected';
@@ -217,6 +222,15 @@ export interface Order {
   cancelReason: string;
   createdAt: string;
   completedAt: string | null;
+  /** 外送：顧客下單時提供的定位（選填） */
+  deliveryLat: number | null;
+  deliveryLng: number | null;
+  /** 店家接單時設定的製作時間（分鐘） */
+  prepMinutes: number | null;
+  /** 外送員取餐出發的時間 */
+  deliveringAt: string | null;
+  /** 外送員按下「已送達」的時間 */
+  deliveredAt: string | null;
 }
 
 // ===== 健康紀錄 =====
